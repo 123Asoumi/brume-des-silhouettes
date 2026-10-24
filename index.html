@@ -79,6 +79,25 @@
   @keyframes pop{0%{transform:translateX(-50%) scale(1)}30%{transform:translateX(-50%) scale(1.18);color:#8a5a30}100%{transform:translateX(-50%) scale(1)}}
   .touch .obj{top:calc(72px + env(safe-area-inset-top,0px));font-size:17px}
   .touch .etat{top:calc(108px + env(safe-area-inset-top,0px))}
+  /* guide du joueur : où je suis, où aller, quoi faire */
+  .aide{display:none}
+  .boussole{position:fixed;left:50%;transform:translateX(-50%);top:calc(46px + env(safe-area-inset-top,0px));z-index:6;display:flex;align-items:center;gap:8px;
+    font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink);pointer-events:none;white-space:nowrap}
+  .fleche{width:18px;height:18px;background:var(--ink);clip-path:polygon(50% 0,100% 100%,50% 74%,0 100%);transition:transform .2s linear}
+  .etat{top:calc(78px + env(safe-area-inset-top,0px))}
+  .guide{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(18px + env(safe-area-inset-bottom,0px));z-index:6;
+    width:min(440px,calc(100vw - 32px));background:var(--veil);backdrop-filter:blur(8px);border:1px solid var(--rule);
+    padding:10px 14px;display:grid;gap:3px;pointer-events:none}
+  .guide p{margin:0}
+  .lieu{font-family:var(--mono);font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--soft)}
+  .conseil{font-size:17px;line-height:1.3;color:var(--ink);text-wrap:pretty}
+  @media (max-width:1180px){ .guide{bottom:auto;top:calc(112px + env(safe-area-inset-top,0px))} }
+  .touch .cartel{display:none}
+  .touch .obj{top:calc(12px + env(safe-area-inset-top,0px))}
+  .touch .boussole{top:calc(42px + env(safe-area-inset-top,0px))}
+  .touch .etat{top:calc(70px + env(safe-area-inset-top,0px))}
+  .touch .guide{bottom:auto;top:calc(102px + env(safe-area-inset-top,0px))}
+  .touch .conseil{font-size:15px}
   .bulle{position:fixed;z-index:12;transform:translate(-50%,calc(-100% - 18px));width:min(300px,calc(100vw - 32px));
     background:var(--paper);border:1.5px solid var(--ink);padding:14px 16px 16px;display:grid;gap:6px;box-shadow:4px 4px 0 rgba(22,21,20,.18)}
   .bulle::after{content:"";position:absolute;left:50%;bottom:-11px;width:18px;height:18px;background:var(--paper);
@@ -154,6 +173,8 @@
 <p class="etat" id="etat" hidden></p>
 <div class="mange" id="mange" hidden><p id="mange-txt"></p><span>Retour au départ…</span></div>
 <p class="obj" id="obj"></p>
+<div class="boussole" id="boussole" hidden><span class="fleche" id="g-arrow"></span><span id="g-dist"></span></div>
+<div class="guide" id="guide" aria-live="polite"><p class="lieu" id="g-lieu"></p><p class="conseil" id="g-tip"></p></div>
 <div class="bulle" id="bulle" hidden>
   <button class="bulle-x" id="bulle-x" type="button" aria-label="Fermer">×</button>
   <p class="bulle-k">Écris le sort pour te téléporter</p>
@@ -1686,6 +1707,68 @@ ${LVP}
     dust(x, z, 7, 12, .5); if(audio.on) audio.boom(.4);
   }
 
+  /* ================= Guide du joueur ================= */
+  const gL = document.getElementById('g-lieu'), gT = document.getElementById('g-tip'), gA = document.getElementById('g-arrow'), gD = document.getElementById('g-dist'), gBox = document.getElementById('boussole');
+  const TOUCH = document.documentElement.classList.contains('touch');
+  const guide = { moved:false, acc:1 };
+  const fmtD = d => d < 1000 ? Math.round(d) + ' m' : (d/1000).toFixed(d < 10000 ? 1 : 0).replace('.', ',') + ' km';
+  function whereAmI(hx, hz){
+    const hut = inHut(hx, hz);
+    if(hut === homeHut) return 'Dans ta case';
+    if(hut && hut.palace) return 'Dans un palais du Village-Visage';
+    if(hut && hut.village) return 'Dans une case du Village-Visage';
+    if(hut) return 'Dans une case du village';
+    const du = (hx-FACE.x)*RGT[0] + (hz-FACE.z)*RGT[1], dw = (hx-FACE.x)*FWD[0] + (hz-FACE.z)*FWD[1];
+    if((du/1350)**2 + (dw/1650)**2 < 1) return 'Dans les rues du Village-Visage';
+    if(Math.hypot(hx-LAKE.x, hz-LAKE.z) < LAKE.R + 15) return 'Au bord du lac';
+    const ph = P(64, 8); if(Math.hypot(hx-ph[0], hz-ph[1]) < 55) return 'Chez les cochons masqués';
+    if(Math.hypot(hx, hz) < 70) return 'Au village, près de ta case';
+    let best = null, bd = 1e12; for(const s of live.values()){ const d = Math.hypot(s.x-hx, s.z-hz); if(d < bd){ bd = d; best = s; } }
+    if(best && bd < 9000) return 'Près de : ' + LABELS[best.type].toLowerCase();
+    return 'Dans la plaine';
+  }
+  function updateGuide(dt, hx, hz){
+    if(curV > .3) guide.moved = true;
+    if((guide.acc += dt) < .2) return; guide.acc = 0;
+    let tx = null, tz = null, tname = '';
+    if(!level.done){
+      if(level.got >= 3){ tx = homeHut.x; tz = homeHut.z; tname = 'ta case'; }
+      else { let bd = 1e12; level.items.forEach((it, i) => { if(it.taken) return; const d = Math.hypot(it.x-hx, it.z-hz); if(d < bd){ bd = d; tx = it.x; tz = it.z; tname = 'bois ' + (i+1); } }); }
+    }
+    let dist = 0;
+    if(tx !== null){
+      dist = Math.hypot(tx-hx, tz-hz);
+      gA.style.transform = `rotate(${-(Math.atan2(tx-hx, tz-hz) - camYaw)}rad)`;
+      gD.textContent = `${tname} · ${fmtD(dist)}`; gBox.hidden = false;
+    } else gBox.hidden = true;
+    const lieu = whereAmI(hx, hz);
+    if(gL.textContent !== lieu) gL.textContent = lieu;
+    const hut = inHut(hx, hz);
+    const chased = pigs.some(p => p.state === 'chasse'), searching = pigs.some(p => p.state === 'cherche');
+    const fishAlert = fish.state === 'approche' || fish.state === 'saut';
+    let nearFire = false; for(const s of live.values()) if(s.type === 'feu' && Math.hypot(s.x-hx, s.z-hz) < 7000) nearFire = true;
+    const sortKey = TOUCH ? 'bouton Sort' : 'touche T';
+    let tip;
+    if(level.done) tip = 'Bravo ! Le feu brûle dans ta case.';
+    else if(game.lock > 0) tip = 'Tu as été attrapé… Retour au départ, tu gardes le bois déjà ramassé.';
+    else if(game.stomper && !hut) tip = 'Un titan lève le pied sur toi : sors vite de l’ombre noire au sol, ou entre dans une case.';
+    else if(fishAlert) tip = 'Le poisson masqué bondit ! Éloigne-toi de la rive en courant.';
+    else if(chased) tip = `Une bête te poursuit : cours (${TOUCH ? 'bouton Courir' : 'Maj'}) et cache-toi derrière un rocher ou dans une case.`;
+    else if(hut && searching) tip = 'Ils te cherchent dehors. Reste caché quelques secondes.';
+    else if(nearFire) tip = 'Attention : trop près du grand feu, les titans vont t’attraper et t’y jeter. Fais demi-tour.';
+    else if(!guide.moved) tip = TOUCH ? 'Pousse le joystick pour marcher, glisse l’écran pour tourner la caméra.' : 'Marche avec ZQSD ou les flèches, tourne la caméra en glissant la souris.';
+    else if(level.got >= 3 && hut === homeHut) tip = 'Tu y es : le feu va se rallumer.';
+    else if(level.got >= 3) tip = dist > 2000 ? `Tu as tout le bois ! Lance le sort (${sortKey}) et touche « ta case » sur la carte.` : 'Tu as tout le bois ! Suis la flèche jusqu’à ta case et entre par la porte.';
+    else if(dist > 2000) tip = `Le ${tname} est loin : lance le sort de téléportation (${sortKey}), puis touche le carré marron sur la carte.`;
+    else if(searching) tip = 'Ils te cherchent : reste derrière un rocher ou dans une case.';
+    else if(Math.hypot(hx-LAKE.x, hz-LAKE.z) < LAKE.R + 10 && !level.items[0].taken) tip = 'Le poisson guette la rive. Attends qu’il nage de l’autre côté, puis prends le bois sur le nénuphar.';
+    else if(hut && hut.palace) tip = 'Ici, personne ne te voit. Le bois est au centre du palais.';
+    else if(lieu.includes('Village-Visage')) tip = 'Les bêtes rôdent dans les rues. Avance de case en case, et cours si l’une d’elles te voit.';
+    else if(hut) tip = 'Caché : les bêtes et les titans ne peuvent pas te voir ici.';
+    else tip = `Suis la flèche jusqu’au ${tname}. Ramasse-le en marchant dessus.`;
+    if(gT.textContent !== tip) gT.textContent = tip;
+  }
+
   document.getElementById('go').addEventListener('click', () => { ui.intro = false; document.getElementById('intro').hidden = true; });
   document.getElementById('rejouer').addEventListener('click', () => { finEl.hidden = true; resetLevel(); game.respawn = true; });
 
@@ -1737,6 +1820,7 @@ ${LVP}
     if(game.respawn){ game.respawn = false; x = 0; z = 0; heroYaw = camYaw = START_YAW; curV = 0; respawnBeasts(); }
     updateGame(dt, x, z);
     updateLevel(dt, x, z);
+    updateGuide(dt, x, z);
     camX = x; camZ = z;
 
     // caméra en orbite autour du garçon, qui le suit sans à-coups
