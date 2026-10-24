@@ -103,6 +103,7 @@ function garment(mesh, pick, thick, mat){
 
 /* ---------- construction de toute la tenue ---------- */
 export function buildOutfit(obj, outfit, mats){
+  // mats.onUnit(u) permet au moteur d'adapter les motifs des vêtements à l'échelle du modèle
   const mesh = bodyMesh(obj);
   if(!mesh) return [];
   obj.updateMatrixWorld(true);
@@ -115,7 +116,10 @@ export function buildOutfit(obj, outfit, mats){
   const TORSO = set('Spine', 'Spine1', 'Spine2', 'LeftShoulder', 'RightShoulder'), HIPS = set('Hips');
   const NECK = set('Neck', 'Head'), ARMS = set('LeftArm', 'RightArm', 'LeftForeArm', 'RightForeArm', 'LeftHand', 'RightHand');
   const FORE = set('LeftForeArm', 'RightForeArm'), UPPER = set('LeftArm', 'RightArm'), HANDS = set('LeftHand', 'RightHand');
-  const hipsY = bone('Hips').position.y, waist = hipsY + .02;
+  // échelle du modèle : les réglages ont été faits sur le garçon (1,10 de haut) ; les autres corps s'y rapportent
+  if(!g.boundingBox) g.computeBoundingBox();
+  const u = (g.boundingBox.max.y - g.boundingBox.min.y)/1.1036;
+  const hipsY = bone('Hips').position.y, waist = hipsY + .02*u;
 
   // ---- haut ----
   const torso = i => {
@@ -123,15 +127,15 @@ export function buildOutfit(obj, outfit, mats){
     return (W(i, TORSO) >= .5 || (W(i, HIPS) >= .5 && y > waist)) && W(i, NECK) < .3 && W(i, ARMS) < .4;
   };
   if(outfit.top !== 'aucun'){
-    let pick = torso, kind = 0, thick = .006;
+    let pick = torso, kind = 0, thick = .006*u;
     if(outfit.top === 'harnais'){
-      kind = 1; thick = .008;
+      kind = 1; thick = .008*u;
       pick = i => { if(!torso(i)) return false;
-        const x = pos.getX(i), y = pos.getY(i), c = hipsY + .16;
-        return Math.abs(x - .95*(y - c)) < .022 || Math.abs(x + .95*(y - c)) < .022 || Math.abs(y - (hipsY + .05)) < .016; };
+        const x = pos.getX(i), y = pos.getY(i), c = hipsY + .16*u;
+        return Math.abs(x - .95*(y - c)) < .022*u || Math.abs(x + .95*(y - c)) < .022*u || Math.abs(y - (hipsY + .05*u)) < .016*u; };
     } else if(outfit.top === 'gilet'){
-      kind = 2; thick = .007;
-      pick = i => torso(i) && !(pos.getZ(i) > 0 && Math.abs(pos.getX(i)) < .022 + Math.max(0, pos.getY(i) - waist)*.22);
+      kind = 2; thick = .007*u;
+      pick = i => torso(i) && !(pos.getZ(i) > 0 && Math.abs(pos.getX(i)) < .022*u + Math.max(0, pos.getY(i) - waist)*.22);
     }
     const sm = garment(mesh, pick, thick, mats.garment(kind, outfit.color));
     if(sm) made.push({ node: sm, parent: mesh.parent });
@@ -140,7 +144,7 @@ export function buildOutfit(obj, outfit, mats){
   if(outfit.sleeves !== 'aucune'){
     const longues = outfit.sleeves === 'longues';
     const pick = i => longues ? (W(i, FORE) + W(i, UPPER) >= .5 && W(i, HANDS) < .4) : (W(i, FORE) >= .55 && W(i, HANDS) < .3);
-    const sm = garment(mesh, pick, longues ? .006 : .008, mats.garment(longues ? 4 : 3, outfit.color));
+    const sm = garment(mesh, pick, (longues ? .006 : .008)*u, mats.garment(longues ? 4 : 3, outfit.color));
     if(sm) made.push({ node: sm, parent: mesh.parent });
   }
 
@@ -177,10 +181,10 @@ export function buildOutfit(obj, outfit, mats){
     const spine = bone('Spine'), hips = bone('Hips');
     if(spine && hips){
       const pts = pointsFor(mesh, ['Hips', 'Spine'], .4, hips);
-      const y0 = (bone('Spine').position.y)*.55, w = ringAt(pts, y0, .012);
+      const y0 = (bone('Spine').position.y)*.55, w = ringAt(pts, y0, .012*u);
       if(w){
         const pal1 = ['#b8322a', '#efe8da', '#b8322a', '#d9b23a'], pal2 = ['#2c3e8f', '#efe8da', '#1f8a8a'];
-        add(hips, [...beadRing(w, 46, w.r*.045, pal1, 0, 1.04), ...beadRing(w, 44, w.r*.04, pal2, .014, 1.03)]);
+        add(hips, [...beadRing(w, 46, w.r*.045, pal1, 0, 1.04), ...beadRing(w, 44, w.r*.04, pal2, .014*u, 1.03)]);
       }
     }
     for(const side of ['Left', 'Right']){
@@ -194,7 +198,7 @@ export function buildOutfit(obj, outfit, mats){
   if(outfit.collier){
     const neck = bone('Neck');
     if(neck){
-      const pts = pointsFor(mesh, ['Neck', 'Spine2'], .4, neck), base = ringAt(pts, .004, .012);
+      const pts = pointsFor(mesh, ['Neck', 'Spine2'], .4, neck), base = ringAt(pts, .004*u, .012*u);
       if(base){
         const { up, fwd } = axesIn(neck, obj), right = new T.Vector3().crossVectors(up, fwd).normalize();
         const R = base.r*1.12, geos = [], center = new T.Vector3(base.cx, base.y, base.cz), N = 34;

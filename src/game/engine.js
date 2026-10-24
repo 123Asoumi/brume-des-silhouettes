@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { createAudio } from './audio.js';
 import { fitHead, buildHair, buildCap } from './hair.js';
 import { buildOutfit, disposeOutfit, DEFAULT_OUTFIT } from './outfit.js';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 
 const ASSET = path => import.meta.env.BASE_URL + path;
 
@@ -11,6 +12,7 @@ export function createEngine(canvas, store){
   const T = THREE;
   if (T.ColorManagement) T.ColorManagement.enabled = false;   // les couleurs de la palette arrivent telles quelles dans les shaders
   const cleanups = [];
+  let disposed = false;
   const on = (target, type, fn, opts) => { target.addEventListener(type, fn, opts); cleanups.push(() => target.removeEventListener(type, fn, opts)); };
   const renderer = new T.WebGLRenderer({canvas, antialias:true, logarithmicDepthBuffer:true});
   renderer.outputColorSpace = T.LinearSRGBColorSpace;
@@ -417,9 +419,8 @@ ${LVP}
   const wrap = a => Math.atan2(Math.sin(a), Math.cos(a));
   const faceTo = (J, x, z) => Math.atan2(x - J.x, z - J.z);
 
-  /* ================= Le héros : petit garçon en pagne, avec sa texture d'origine ================= */
-  const heroTex = new T.TextureLoader().load(ASSET('hero.jpg'));
-  const heroMat = new T.ShaderMaterial({ uniforms: Object.assign({ map:{value: heroTex}, uPagne:{value: new T.Color('#2c3e8f')}, uPagneOn:{value: 0}, uSkin:{value: new T.Color('#5a3622')}, uSkinOn:{value: 0} }, U),
+  /* ================= Le héros : personnage choisi par le joueur, avec sa texture d'origine ================= */
+  const heroMat = new T.ShaderMaterial({ uniforms: Object.assign({ map:{value: null}, uTh:{value:.55}, uDark:{value:.36}, uLumHi:{value:.72}, uPagne:{value: new T.Color('#2c3e8f')}, uPagneOn:{value: 0}, uSkin:{value: new T.Color('#5a3622')}, uSkinOn:{value: 0} }, U),
     vertexShader: `${LVP}
 #include <skinning_pars_vertex>
       varying vec3 vW; varying vec3 vN; varying vec2 vUv;
@@ -435,17 +436,17 @@ ${LVP}
     fragmentShader: `
       precision highp float;
       varying vec3 vW; varying vec3 vN; varying vec2 vUv;
-      uniform sampler2D map; uniform vec3 uSun,uSky,uCam,uPagne,uSkin; uniform float uTime,uPagneOn,uSkinOn;
+      uniform sampler2D map; uniform vec3 uSun,uSky,uCam,uPagne,uSkin; uniform float uTime,uPagneOn,uSkinOn,uTh,uDark,uLumHi;
       ${GRAIN}
       ${HAZE}
       void main(){
         vec3 tx = texture2D(map, vUv).rgb;
         // le pagne est la seule zone claire de la texture : on la teinte en gardant ses plis et ses ombres
         float lum = dot(tx, vec3(.299, .587, .114));
-        float cloth = smoothstep(.50, .60, lum);
-        tx = mix(tx, uPagne * clamp(lum/.72, 0., 1.25), cloth*uPagneOn);
+        float cloth = smoothstep(uTh - .05, uTh + .05, lum);   // seuil propre à chaque personnage
+        tx = mix(tx, uPagne * clamp(lum/uLumHi, 0., 1.25), cloth*uPagneOn);
         // la peau : tout ce qui n'est pas le pagne ; la teinte garde les ombres et les détails du visage
-        tx = mix(tx, uSkin * clamp(lum/.36, 0., 1.7), (1. - cloth)*uSkinOn);
+        tx = mix(tx, uSkin * clamp(lum/uDark, 0., 1.7), (1. - cloth)*uSkinOn);
         float l = .72 + .38*max(dot(normalize(vN), uSun), 0.);
         vec3 c = tx * l + (grain()-.5)*.05;
         gl_FragColor = vec4(mix(c, uSky, haze(vW)), 1.);
@@ -500,25 +501,25 @@ ${LVP}
         gl_Position = projectionMatrix*viewMatrix*w; ${LV} }`;
   const garmentF = `
       precision highp float; varying vec3 vW; varying vec3 vN; varying vec3 vR;
-      uniform vec3 uCol, uSun, uSky, uCam; uniform float uTime, uKind, uHips;
+      uniform vec3 uCol, uSun, uSky, uCam; uniform float uTime, uKind, uHips, uUnit;
       ${GRAIN}
       ${HAZE}
       void main(){
         vec3 cream = vec3(.93,.88,.78), leather = vec3(.43,.27,.15), dark = vec3(.2,.12,.07);
-        float y = vR.y - uHips;
+        vec3 R = vR/uUnit; float y = (vR.y - uHips)/uUnit;
         vec3 base = uCol;
         if(uKind < .5){            // tunique de guerrier : bandes crème et chevrons sur la poitrine
           float band = step(abs(y - .05), .007) + step(abs(y - .2), .005);
-          float chev = step(.5, fract((y + abs(vR.x)*.9)*60.)) * step(abs(y - .125), .024);
+          float chev = step(.5, fract((y + abs(R.x)*.9)*60.)) * step(abs(y - .125), .024);
           base = mix(uCol, cream, clamp(band + chev*.85, 0., 1.));
         } else if(uKind < 1.5){    // harnais de cuir piqué
-          base = leather*(.82 + .3*step(.5, fract(vR.y*150. + vR.x*40.)));
+          base = leather*(.82 + .3*step(.5, fract(R.y*150. + R.x*40.)));
         } else if(uKind < 2.5){    // gilet de chasseur : liseré crème au bord
           base = mix(uCol*.95, cream, step(.5, fract(y*90.))*step(abs(y - .02), .01));
         } else if(uKind < 3.5){    // bandes de cuir enroulées sur les avant-bras
-          base = mix(leather, dark, step(.55, fract((vR.y*1.4 + vR.x + vR.z)*70.)));
+          base = mix(leather, dark, step(.55, fract((R.y*1.4 + R.x + R.z)*70.)));
         } else {                   // manches longues avec poignets crème
-          base = mix(uCol, cream, step(.5, fract(vR.y*55.))*.15);
+          base = mix(uCol, cream, step(.5, fract(R.y*55.))*.15);
         }
         vec3 n = normalize(vN);
         float l = .5 + .62*max(dot(n, uSun), 0.);
@@ -551,39 +552,68 @@ ${LVP}
       jewel: jewelMat,
       head: hero.head || (hero.head = fitHead(hero.obj)),
       garment: (kind, color) => new T.ShaderMaterial({
-        uniforms: Object.assign({ uCol:{ value: new T.Color(color) }, uKind:{ value: kind }, uHips:{ value: hipsY } }, U),
+        uniforms: Object.assign({ uCol:{ value: new T.Color(color) }, uKind:{ value: kind }, uHips:{ value: hipsY }, uUnit:{ value: hero.unit || 1 } }, U),
         vertexShader: garmentV, fragmentShader: garmentF }),
     };
     outfit.made = buildOutfit(hero.obj, outfit, mats);
   }
 
-  const WALK = 1.36, RUN = 2.38;   // vitesses réelles des animations (m/s), pour que les pieds ne glissent pas
-  const hero = { obj:null, mixer:null, acts:{}, cur:null,
+  const hero = { obj:null, mixer:null, acts:{}, cur:null, speeds:{ walk:1.36, run:2.38 }, h:1.35, unit:1, id:null,
     play(name, fade){ const a = this.acts[name]; if(!a || this.cur === a) return; a.reset().fadeIn(fade).play(); if(this.cur) this.cur.fadeOut(fade); this.cur = a; },
     update(dt, v){
       if(!this.mixer) return;
+      const W = this.speeds.walk, R = this.speeds.run;
       if(v < .08) this.play('idle', .35);
-      else if(v < (WALK+RUN)/2){ this.play('walk', .25); this.acts.walk.timeScale = Math.max(.5, v/WALK); }
-      else { this.play('run', .25); this.acts.run.timeScale = Math.min(1.1, v/RUN); }
+      else if(v < (W + R)/2){ this.play('walk', .25); this.acts.walk.timeScale = Math.max(.5, v/W); }
+      else { this.play('run', .25); this.acts.run.timeScale = Math.min(1.1, v/R); }
       this.mixer.update(dt);
     } };
-  fetch(ASSET('hero.json')).then(r => { if(!r.ok) throw new Error(r.status); return r.arrayBuffer(); })
-    .then(async b => {
-      const u = new Uint8Array(b);
-      const txt = (u[0] === 0x1f && u[1] === 0x8b)
-        ? await new Response(new Blob([b]).stream().pipeThrough(new DecompressionStream('gzip'))).text()
-        : new TextDecoder().decode(u);
-      const obj = new T.ObjectLoader().parse(JSON.parse(txt));
-      obj.traverse(o => { if(o.isSkinnedMesh){ o.material = heroMat; o.frustumCulled = false; } });
-      obj.scale.setScalar(1.35 / 1.1036);            // environ 1,35 m : un enfant face à des géants de 10 km
+  // personnages : un fichier .glb par apparence (corps, texture, repos / marche / course)
+  const gltfLoader = new GLTFLoader();
+  let manifest = [], loadToken = 0;
+  function loadCharacter(id){
+    const info = manifest.find(c => c.id === id) || manifest[0];
+    if(!info) return;
+    const token = ++loadToken;
+    store.set({ charLoading: info.id });
+    gltfLoader.load(ASSET('characters/' + info.id + '.glb'), gltf => {
+      if(token !== loadToken || disposed) return;
+      const obj = gltf.scene; let map = null, body = null;
+      obj.traverse(o => { if(o.isSkinnedMesh){ map = o.material.map; body = o; o.material = heroMat; o.frustumCulled = false; } });
+      if(map){ map.colorSpace = T.NoColorSpace; map.needsUpdate = true; }
+      const k = info.height / info.modelHeight;
+      obj.scale.setScalar(k);
+      // on retire l'ancien personnage (et ce qui lui était accroché)
+      if(hero.obj){
+        disposeOutfit(outfit.made); outfit.made = [];
+        if(hair.group && hero.head) hero.head.bone.remove(hair.group);
+        hero.mixer.stopAllAction(); scene.remove(hero.obj);
+        const old = heroMat.uniforms.map.value;
+        hero.obj.traverse(o => { if(o.geometry) o.geometry.dispose(); });
+        if(old) old.dispose();
+      }
+      hair.group = null; hero.head = null;
+      heroMat.uniforms.map.value = map;
+      heroMat.uniforms.uTh.value = info.th; heroMat.uniforms.uDark.value = info.dark; heroMat.uniforms.uLumHi.value = info.light;
+      body.geometry.computeBoundingBox();
+      hero.unit = (body.geometry.boundingBox.max.y - body.geometry.boundingBox.min.y)/1.1036;
       scene.add(obj);
-      hero.mixer = new T.AnimationMixer(obj);
-      for(const c of obj.animations) hero.acts[c.name] = hero.mixer.clipAction(c);
-      hero.obj = obj;
+      hero.mixer = new T.AnimationMixer(obj); hero.acts = {}; hero.cur = null;
+      for(const c of gltf.animations) hero.acts[c.name] = hero.mixer.clipAction(c);
+      hero.speeds = { walk: info.walk*k, run: info.run*k };
+      hero.h = info.height; hero.id = info.id; hero.obj = obj;
       applyHair();
       applyOutfit();
-    })
-    .catch(e => console.warn('Héros non chargé', e));
+      store.set({ charLoading: null, character: info.id });
+    }, undefined, e => { console.warn('Personnage non chargé', e); if(token === loadToken) store.set({ charLoading: null }); });
+  }
+  fetch(ASSET('characters/manifest.json')).then(r => r.json()).then(list => {
+    if(disposed) return;
+    manifest = list;
+    store.set({ characters: list.map(c => ({ id: c.id, label: c.label, thumb: ASSET('characters/' + c.id + '.png') })) });
+    let saved = null; try { saved = localStorage.getItem('brume.character'); } catch(e) {}
+    loadCharacter(saved && list.some(c => c.id === saved) ? saved : 'garcon');
+  }).catch(e => console.warn('Liste des personnages introuvable', e));
 
   /* ================= Poussière, feu et fumée ================= */
   const PN = 1800;
@@ -1507,6 +1537,11 @@ ${LVP}
       try { localStorage.setItem('brume.hair', JSON.stringify(h)); } catch(e) {}
       applyHair();
     },
+    setCharacter(id){
+      if(id === hero.id && !store.get().charLoading) return;
+      try { localStorage.setItem('brume.character', id); } catch(e) {}
+      loadCharacter(id);
+    },
     setOutfit(patch){
       Object.assign(outfit, patch);
       const o = {}; for(const k in DEFAULT_OUTFIT) o[k] = outfit[k];
@@ -1527,12 +1562,12 @@ ${LVP}
       try { if(hex) localStorage.setItem('brume.pagne', hex); else localStorage.removeItem('brume.pagne'); } catch(e) {}
     },
     bubbleAnchor(){
-      const v = new T.Vector3(x, height(x, z) + 1.75, z).project(camera), r = canvas.getBoundingClientRect();
+      const v = new T.Vector3(x, height(x, z) + hero.h + .4, z).project(camera), r = canvas.getBoundingClientRect();
       return { x:(v.x*.5 + .5)*r.width, y:(-v.y*.5 + .5)*r.height, w:r.width, h:r.height };
     },
     map: { view: mapView, clampR, draw: drawMap, toWorld, RGT, FWD },
     dispose(){
-      cancelAnimationFrame(raf); clearTimeout(finTimer);
+      disposed = true; cancelAnimationFrame(raf); clearTimeout(finTimer);
       cleanups.forEach(f => f()); audio.dispose(); renderer.dispose();
     },
   };
@@ -1562,9 +1597,10 @@ ${LVP}
     if(paused()){                       // le temps s'arrête pendant le sort, la carte et la personnalisation
       if(store.get().perso){            // la caméra tourne lentement autour du garçon pour le montrer
         camYaw += dt*.35;
-        const hy = height(x, z), d = 3.1, bx = x - Math.sin(camYaw)*d, bz = z - Math.cos(camYaw)*d;
-        camera.position.set(bx, hy + 1.45, bz); camera.lookAt(x, hy + .95, z);
+        const hh = hero.h, hy = height(x, z), d = 3.1*hh/1.35 + .4, bx = x - Math.sin(camYaw)*d, bz = z - Math.cos(camYaw)*d;
+        camera.position.set(bx, hy + hh*1.07, bz); camera.lookAt(x, hy + hh*.7, z);
         U.uCam.value.copy(camera.position); sky.position.copy(camera.position);
+        if(hero.obj){ hero.obj.position.set(x, hy, z); hero.obj.rotation.y = heroYaw; hero.obj.visible = true; }
         hero.update(dt, 0);
       }
       renderer.render(scene, camera); return;
@@ -1582,7 +1618,7 @@ ${LVP}
       const dx = cfx*inF + crx*inR, dz = cfz*inF + crz*inR;
       heroYaw += wrap(Math.atan2(dx, dz) - heroYaw) * (1 - Math.pow(.0005, dt));   // le garçon pivote en douceur vers sa direction
       const running = keys['shift'] || runHold || rush;
-      target = (running ? RUN : WALK) * Math.max(mag, .35);
+      target = (running ? hero.speeds.run : hero.speeds.walk) * Math.max(mag, .35);
     }
     // Foncer : pour traverser la plaine jusqu'aux titans (montée progressive jusqu'à ~140 m/s)
     boost = (rush && target > 0) ? Math.min(60, Math.max(1, boost * Math.pow(1.6, dt) + dt*.5)) : Math.max(1, boost * Math.pow(.05, dt));

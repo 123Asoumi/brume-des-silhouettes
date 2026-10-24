@@ -30,17 +30,32 @@ function Choix({ items, value, onPick, label }){
 
 export function Perso({ engine }){
   const open = useGame(s => s.perso), pagne = useGame(s => s.pagne), skin = useGame(s => s.skin), hair = useGame(s => s.hair), outfit = useGame(s => s.outfit);
-  const [tab, setTab] = useState('corps');
+  const characters = useGame(s => s.characters), character = useGame(s => s.character), loading = useGame(s => s.charLoading);
+  const [tab, setTab] = useState('silhouette');
   if(!open) return null;
   const custom = pagne && !PAGNES.some(([h]) => h === pagne);
   return (
     <div className="perso" role="dialog" aria-label="Personnaliser le personnage">
       <p className="k">Ton personnage</p>
       <div className="onglets" role="tablist">
-        {[['corps', 'Corps'], ['tenue', 'Tenue'], ['bijoux', 'Bijoux']].map(([id, name]) => (
+        {[['silhouette', 'Silhouette'], ['corps', 'Corps'], ['tenue', 'Tenue'], ['bijoux', 'Bijoux']].map(([id, name]) => (
           <button key={id} role="tab" type="button" aria-selected={tab === id} onClick={() => setTab(id)}>{name}</button>
         ))}
       </div>
+
+      {tab === 'silhouette' && <>
+        <h2>Apparence</h2>
+        <div className="silhouettes" role="group" aria-label="Choix de l’apparence">
+          {characters.map(c => (
+            <button key={c.id} type="button" className="silhouette" aria-pressed={character === c.id} aria-busy={loading === c.id}
+              onClick={() => engine.setCharacter(c.id)} disabled={!!loading && loading !== c.id}>
+              <img src={c.thumb} alt="" loading="lazy" />
+              <span>{loading === c.id ? 'Chargement…' : c.label}</span>
+            </button>
+          ))}
+        </div>
+        <p className="note">Couleurs, coiffure, tenue et bijoux suivent le personnage choisi.</p>
+      </>}
 
       {tab === 'corps' && <>
         <h2>Peau</h2>

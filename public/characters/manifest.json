@@ -1,0 +1,134 @@
+[
+ {
+  "id": "garcon",
+  "label": "Garçon",
+  "height": 1.35,
+  "modelHeight": 1.1036,
+  "walk": 1.111,
+  "run": 1.947,
+  "th": 0.506,
+  "dark": 0.359,
+  "light": 0.654
+ },
+ {
+  "id": "enfant",
+  "label": "Enfant",
+  "height": 1.1,
+  "modelHeight": 1.168,
+  "walk": 0.693,
+  "run": 2.642,
+  "th": 0.533,
+  "dark": 0.404,
+  "light": 0.666
+ },
+ {
+  "id": "ado",
+  "label": "Ado",
+  "height": 1.6,
+  "modelHeight": 1.0479,
+  "walk": 1.063,
+  "run": 2.975,
+  "th": 0.486,
+  "dark": 0.408,
+  "light": 0.57
+ },
+ {
+  "id": "ado-rond",
+  "label": "Ado rond",
+  "height": 1.58,
+  "modelHeight": 1.1041,
+  "walk": 0.714,
+  "run": 1.478,
+  "th": 0.463,
+  "dark": 0.332,
+  "light": 0.597
+ },
+ {
+  "id": "femme",
+  "label": "Femme",
+  "height": 1.65,
+  "modelHeight": 1.044,
+  "walk": 1.004,
+  "run": 2.763,
+  "th": 0.471,
+  "dark": 0.352,
+  "light": 0.592
+ },
+ {
+  "id": "femme-ronde",
+  "label": "Femme ronde",
+  "height": 1.63,
+  "modelHeight": 1.0549,
+  "walk": 0.703,
+  "run": 2.092,
+  "th": 0.463,
+  "dark": 0.344,
+  "light": 0.587
+ },
+ {
+  "id": "femme-sportive",
+  "label": "Femme sportive",
+  "height": 1.68,
+  "modelHeight": 1.0557,
+  "walk": 0.665,
+  "run": 3.746,
+  "th": 0.38,
+  "dark": 0.261,
+  "light": 0.504
+ },
+ {
+  "id": "femme-athletique",
+  "label": "Femme athlétique",
+  "height": 1.7,
+  "modelHeight": 1.0845,
+  "walk": 0.686,
+  "run": 3.69,
+  "th": 0.467,
+  "dark": 0.335,
+  "light": 0.602
+ },
+ {
+  "id": "homme",
+  "label": "Homme",
+  "height": 1.75,
+  "modelHeight": 1.0459,
+  "walk": 1.107,
+  "run": 2.929,
+  "th": 0.471,
+  "dark": 0.35,
+  "light": 0.597
+ },
+ {
+  "id": "homme-rond",
+  "label": "Homme rond",
+  "height": 1.74,
+  "modelHeight": 1.1262,
+  "walk": 0.796,
+  "run": 2.572,
+  "th": 0.467,
+  "dark": 0.356,
+  "light": 0.58
+ },
+ {
+  "id": "homme-muscle",
+  "label": "Homme musclé",
+  "height": 1.8,
+  "modelHeight": 1.044,
+  "walk": 1.11,
+  "run": 3.938,
+  "th": 0.463,
+  "dark": 0.342,
+  "light": 0.587
+ },
+ {
+  "id": "gbachi",
+  "label": "Gbachi",
+  "height": 1.82,
+  "modelHeight": 1.1352,
+  "walk": 0.788,
+  "run": 3.084,
+  "th": 0.459,
+  "dark": 0.339,
+  "light": 0.58
+ }
+]
