@@ -69,9 +69,9 @@ export function createEngine(canvas, store){
 
   /* ================= Lumières ================= */
   const looks = {
-    aube:{ sun:[-.85,.22,.35], sky:'#e9e3d8', top:'#dcd6cc', ink:'#1a1816', stone:'#8f887d', sand:'#d9cbb3', light:'#f3eee5', fog:[60,620], fl:45000 },
-    midi:{ sun:[.25,.85,.35],  sky:'#ece9e3', top:'#e2e0db', ink:'#1d1c1a', stone:'#a7a39b', sand:'#d8d0c2', light:'#f6f4ef', fog:[90,680], fl:62000 },
-    soir:{ sun:[.9,.16,-.25],  sky:'#d6d0c5', top:'#bfb9ae', ink:'#0e0d0c', stone:'#7e786e', sand:'#c4b69f', light:'#ebe3d4', fog:[40,560], fl:32000 },
+    aube:{ sun:[-.85,.22,.35], sky:'#f1d9bf', top:'#9db6d6', ink:'#1a1816', stone:'#8f887d', sand:'#d9cbb3', light:'#f3eee5', fog:[60,620], fl:45000 },
+    midi:{ sun:[.25,.85,.35],  sky:'#d6e4ec', top:'#7ba6cf', ink:'#1d1c1a', stone:'#a7a39b', sand:'#d8d0c2', light:'#f6f4ef', fog:[90,680], fl:62000 },
+    soir:{ sun:[.9,.16,-.25],  sky:'#efb98f', top:'#5a6b9b', ink:'#0e0d0c', stone:'#7e786e', sand:'#c4b69f', light:'#ebe3d4', fog:[40,560], fl:32000 },
   };
   const U = {
     uSun:{value:new T.Vector3()}, uInk:{value:new T.Color()}, uStone:{value:new T.Color()},
@@ -122,7 +122,7 @@ export function createEngine(canvas, store){
 
   // Matériau "pierre" : sol, pierres du foyer, balle des titans
   const stoneMat = new T.ShaderMaterial({
-    uniforms: U,
+    uniforms: Object.assign({ uMode:{ value:0 } }, U),
     vertexShader: `
 ${LVP}
       varying vec3 vW; varying vec3 vN;
@@ -131,7 +131,7 @@ ${LVP}
     fragmentShader: `
       precision highp float;
       varying vec3 vW; varying vec3 vN;
-      uniform vec3 uSun,uInk,uStone,uSand,uLight,uSky,uCam; uniform vec2 uFog; uniform float uTime;
+      uniform vec3 uSun,uInk,uStone,uSand,uLight,uSky,uCam; uniform vec2 uFog; uniform float uTime, uMode;
       ${GRAIN}
       void main(){
         vec3 n = normalize(vN);
@@ -139,9 +139,17 @@ ${LVP}
         float brosse = vn(vW.xz*.018) * .6 + vn(vW.xz*vec2(.09,.012)) * .4;
         float t = clamp(l*.95 + .08 + (brosse-.5)*.22, 0., 1.);
         t = clamp(t + (grain()-.5)*.42, 0., 1.);
-        vec3 c = mix(uInk, uStone, smoothstep(.0,.38,t));
-        c = mix(c, uSand, smoothstep(.36,.66,t));
-        c = mix(c, uLight, smoothstep(.70,.98,t));
+        // savane : terre de latérite et herbe sèche (0) · rochers (1) · murs en banco (2)
+        vec3 e0 = vec3(.24,.16,.09), e1 = vec3(.56,.38,.2), e2 = vec3(.78,.62,.36), e3 = vec3(.93,.84,.62);
+        if(uMode > .5 && uMode < 1.5){ e0 = vec3(.16,.14,.12); e1 = vec3(.4,.35,.3); e2 = vec3(.58,.52,.45); e3 = vec3(.78,.73,.65); }
+        else if(uMode > 1.5){ e0 = vec3(.26,.1,.05); e1 = vec3(.55,.26,.14); e2 = vec3(.71,.41,.24); e3 = vec3(.86,.63,.44); }
+        vec3 c = mix(e0, e1, smoothstep(.0,.38,t));
+        c = mix(c, e2, smoothstep(.36,.66,t));
+        c = mix(c, e3, smoothstep(.70,.98,t));
+        if(uMode < .5){   // plaques d'herbe verte dans la savane
+          float g = smoothstep(.42, .7, vn(vW.xz*.006)*.7 + vn(vW.xz*.03)*.3);
+          c = mix(c, c*vec3(.62,.95,.42)*1.05, g*.75);
+        }
         float d = distance(vW, uCam);
         float f = smoothstep(uFog.x, uFog.y, d);
         f = clamp(f + (grain()-.5)*.18*f*(1.-f)*4., 0., 1.);
@@ -150,6 +158,7 @@ ${LVP}
   });
   ground.material = stoneMat;
   scene.add(ground);
+  const rockMat = new T.ShaderMaterial({ uniforms: Object.assign({ uMode:{ value:1 } }, U), vertexShader: stoneMat.vertexShader, fragmentShader: stoneMat.fragmentShader });
 
   /* ================= Ciel ================= */
   const sky = new T.Mesh(new T.SphereGeometry(400000, 48, 24), new T.ShaderMaterial({
@@ -246,8 +255,8 @@ ${LVP}
       ${HAZE}
       void main(){
         float t = clamp(mix(.02, .62, vY*vY) + (grain()-.5)*.55, 0., 1.);
-        vec3 c = mix(uInk, uStone, smoothstep(.0,.42,t));
-        c = mix(c, uSand, smoothstep(.45,.75,t));
+        vec3 c = mix(vec3(.12,.2,.07), vec3(.36,.5,.18), smoothstep(.0,.42,t));   // pied vert sombre
+        c = mix(c, vec3(.78,.7,.38), smoothstep(.45,.75,t));                       // pointes dorées
         float f = smoothstep(uFog.x, uFog.y, distance(vW, uCam));
         gl_FragColor = vec4(mix(c, uSky, f), 1.);
       }`
@@ -612,7 +621,7 @@ ${LVP}
           c = mix(vec3(.72, .1, .03), vec3(1., .5, .06), smoothstep(.0, .55, k));
           c = mix(c, vec3(1., .92, .55), smoothstep(.6, 1., k));
         }
-        else c = mix(uInk, uStone, vT*1.6);
+        else c = mix(vec3(.24,.17,.11), vec3(.74,.6,.44), vT*1.6);   // poussière de latérite
         float f = haze(vW) * (vT > .9 ? .55 : 1.);
         gl_FragColor = vec4(mix(c, uSky, f), 1.);
       }`
@@ -859,6 +868,24 @@ ${LVP}
   const R7 = rng(77);
 
   // l'eau : le bleu est, avec le feu, la seule couleur du monde
+  // toits de paille et feuilles (les titans et les bêtes restent en noir et blanc)
+  const litF = body => `
+      precision highp float; varying vec3 vW; varying vec3 vN;
+      uniform vec3 uSun, uSky, uCam; uniform float uTime;
+      ${GRAIN}
+      ${HAZE}
+      void main(){
+        vec3 n = normalize(vN);
+        float l = .45 + .65*max(dot(n, uSun), 0.);
+        ${body}
+        c = c*l + (grain()-.5)*.06;
+        gl_FragColor = vec4(mix(c, uSky, haze(vW)), 1.);
+      }`;
+  const THATCH_F = litF('vec3 c = mix(vec3(.38,.27,.13), vec3(.8,.64,.34), vn(vec2(atan(vN.x, vN.z)*40., vW.y*3.)));');
+  const thatchMat = new T.ShaderMaterial({ uniforms: U, vertexShader: stoneMat.vertexShader, fragmentShader: THATCH_F });
+  const leafMat = new T.ShaderMaterial({ uniforms: U, vertexShader: stoneMat.vertexShader,
+    fragmentShader: litF('vec3 c = vec3(.22,.42,.17)*(.85 + .3*vn(vW.xz*7.));'), side: T.DoubleSide });
+
   const waterMat = new T.ShaderMaterial({ uniforms: U,
     vertexShader: `${LVP}
       varying vec3 vW; void main(){ vec4 w = modelMatrix*vec4(position,1.); vW = w.xyz; gl_Position = projectionMatrix*viewMatrix*w; ${LV} }`,
@@ -886,17 +913,17 @@ ${LVP}
     rockGeo.computeVertexNormals(); }
   for(const [fw, rt] of [[14,-7],[22,8],[31,-14],[36,27],[47,4],[55,-12],[62,22],[70,-3],[79,14],[24,-42],[52,-36],[86,30],[40,46],[66,40],[18,36],[90,-6]]){
     const [x, z] = P(fw, rt), s = 1.5 + R7()*1.5;
-    const m = new T.Mesh(rockGeo, stoneMat); m.scale.set(s, s*(.8 + R7()*.35), s*1.1); m.rotation.y = R7()*6.28;
+    const m = new T.Mesh(rockGeo, rockMat); m.scale.set(s, s*(.8 + R7()*.35), s*1.1); m.rotation.y = R7()*6.28;
     m.position.set(x, height(x, z) - .25*s, z); scene.add(m);
     obstacles.push({ x, z, r: s*1.05, kind:'rock' });
   }
-  const wallMat = new T.ShaderMaterial({ uniforms: U, vertexShader: stoneMat.vertexShader, fragmentShader: stoneMat.fragmentShader, side: T.DoubleSide });
+  const wallMat = new T.ShaderMaterial({ uniforms: Object.assign({ uMode:{ value:2 } }, U), vertexShader: stoneMat.vertexShader, fragmentShader: stoneMat.fragmentShader, side: T.DoubleSide });
   const HR = 2.6;
   for(const [fw, rt] of [[16,14],[23,22],[12,25],[29,13]]){
     const [x, z] = P(fw, rt), door = Math.atan2(-x, -z) + (R7()-.5)*.8, y = height(x, z) - .15;
     const wall = new T.Mesh(new T.CylinderGeometry(HR, HR, 2.3, 44, 1, true, door + .45, Math.PI*2 - .9), wallMat);
     wall.position.set(x, y + 1.15, z); scene.add(wall);
-    const roof = new T.Mesh(new T.ConeGeometry(HR + .75, 2.5, 44), titanMat); roof.position.set(x, y + 2.3 + 1.2, z); scene.add(roof);
+    const roof = new T.Mesh(new T.ConeGeometry(HR + .75, 2.5, 44), thatchMat); roof.position.set(x, y + 2.3 + 1.2, z); scene.add(roof);
     obstacles.push({ x, z, r: HR, kind:'hut', door });
   }
   // ---- le Village-Visage : des centaines de cases dessinent un grand visage autour des veilleurs ----
@@ -923,8 +950,8 @@ ${LVP}
       varying vec3 vW; varying vec3 vN;
       void main(){ mat4 m = modelMatrix * instanceMatrix; vec4 w = m*vec4(position,1.); vW = w.xyz; vN = normalize(mat3(m)*normal);
         gl_Position = projectionMatrix*viewMatrix*w; ${LV} }`;
-    const wallInst = new T.ShaderMaterial({ uniforms: U, vertexShader: instV, fragmentShader: stoneMat.fragmentShader, side: T.DoubleSide });
-    const roofInst = new T.ShaderMaterial({ uniforms: U, vertexShader: instV, fragmentShader: titanMat.fragmentShader });
+    const wallInst = new T.ShaderMaterial({ uniforms: Object.assign({ uMode:{ value:2 } }, U), vertexShader: instV, fragmentShader: stoneMat.fragmentShader, side: T.DoubleSide });
+    const roofInst = new T.ShaderMaterial({ uniforms: U, vertexShader: instV, fragmentShader: THATCH_F });
     const unitWall = new T.CylinderGeometry(1, 1, .88, 40, 1, true, .45, Math.PI*2 - .9); unitWall.translate(0, .44, 0);
     const unitRoof = new T.ConeGeometry(1.29, .96, 40); unitRoof.translate(0, .88 + .48, 0);
     const n = villageHuts.length;
@@ -1236,7 +1263,7 @@ ${LVP}
     ];
     for(const s of spots){
       const it = Object.assign(s, { mesh: makeWood(), taken:false, phase: R7()*6 });
-      if(s.float){ const pad = new T.Mesh(new T.CircleGeometry(.95, 24), titanMat); pad.rotation.x = -Math.PI/2; pad.position.set(s.x, LAKE.water + .03, s.z); scene.add(pad); }
+      if(s.float){ const pad = new T.Mesh(new T.CircleGeometry(.95, 24), leafMat); pad.rotation.x = -Math.PI/2; pad.position.set(s.x, LAKE.water + .03, s.z); scene.add(pad); }
       level.items.push(it);
     }
   }
