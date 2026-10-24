@@ -3,6 +3,7 @@
 import * as THREE from 'three';
 import { createAudio } from './audio.js';
 import { fitHead, buildHair, buildCap } from './hair.js';
+import { buildOutfit, disposeOutfit, DEFAULT_OUTFIT } from './outfit.js';
 
 const ASSET = path => import.meta.env.BASE_URL + path;
 
@@ -473,6 +474,78 @@ ${LVP}
     head.bone.add(g); hair.group = g;
   }
 
+  // tenue et bijoux : vêtements découpés dans le corps (même rigging), bijoux accrochés aux os
+  const garmentV = `${LVP}
+#include <skinning_pars_vertex>
+      attribute vec3 aRest; varying vec3 vW; varying vec3 vN; varying vec3 vR;
+      void main(){
+        vR = aRest;
+#include <skinbase_vertex>
+#include <beginnormal_vertex>
+#include <skinnormal_vertex>
+#include <begin_vertex>
+#include <skinning_vertex>
+        vec4 w = modelMatrix*vec4(transformed,1.); vW = w.xyz; vN = normalize(mat3(modelMatrix)*objectNormal);
+        gl_Position = projectionMatrix*viewMatrix*w; ${LV} }`;
+  const garmentF = `
+      precision highp float; varying vec3 vW; varying vec3 vN; varying vec3 vR;
+      uniform vec3 uCol, uSun, uSky, uCam; uniform float uTime, uKind, uHips;
+      ${GRAIN}
+      ${HAZE}
+      void main(){
+        vec3 cream = vec3(.93,.88,.78), leather = vec3(.43,.27,.15), dark = vec3(.2,.12,.07);
+        float y = vR.y - uHips;
+        vec3 base = uCol;
+        if(uKind < .5){            // tunique de guerrier : bandes crème et chevrons sur la poitrine
+          float band = step(abs(y - .05), .007) + step(abs(y - .2), .005);
+          float chev = step(.5, fract((y + abs(vR.x)*.9)*60.)) * step(abs(y - .125), .024);
+          base = mix(uCol, cream, clamp(band + chev*.85, 0., 1.));
+        } else if(uKind < 1.5){    // harnais de cuir piqué
+          base = leather*(.82 + .3*step(.5, fract(vR.y*150. + vR.x*40.)));
+        } else if(uKind < 2.5){    // gilet de chasseur : liseré crème au bord
+          base = mix(uCol*.95, cream, step(.5, fract(y*90.))*step(abs(y - .02), .01));
+        } else if(uKind < 3.5){    // bandes de cuir enroulées sur les avant-bras
+          base = mix(leather, dark, step(.55, fract((vR.y*1.4 + vR.x + vR.z)*70.)));
+        } else {                   // manches longues avec poignets crème
+          base = mix(uCol, cream, step(.5, fract(vR.y*55.))*.15);
+        }
+        vec3 n = normalize(vN);
+        float l = .5 + .62*max(dot(n, uSun), 0.);
+        vec3 c = base*l*1.08 + (grain()-.5)*.05;
+        gl_FragColor = vec4(mix(c, uSky, haze(vW)), 1.);
+      }`;
+  const jewelMat = new T.ShaderMaterial({ uniforms: U,
+    vertexShader: `${LVP}
+      attribute vec4 aCol; varying vec3 vW; varying vec3 vN; varying vec4 vC;
+      void main(){ vC = aCol; vec4 w = modelMatrix*vec4(position,1.); vW = w.xyz; vN = normalize(mat3(modelMatrix)*normal);
+        gl_Position = projectionMatrix*viewMatrix*w; ${LV} }`,
+    fragmentShader: `
+      precision highp float; varying vec3 vW; varying vec3 vN; varying vec4 vC;
+      uniform vec3 uSun, uSky, uCam; uniform float uTime;
+      ${GRAIN}
+      ${HAZE}
+      void main(){
+        vec3 n = normalize(vN), v = normalize(uCam - vW);
+        float l = .45 + .65*max(dot(n, uSun), 0.);
+        float spec = pow(max(dot(reflect(-uSun, n), v), 0.), 24.)*vC.a;
+        vec3 c = vC.rgb*l + spec*mix(vec3(1.), vC.rgb, .4)*.9 + (grain()-.5)*.04;
+        gl_FragColor = vec4(mix(c, uSky, haze(vW)), 1.);
+      }` });
+  const outfit = { ...DEFAULT_OUTFIT, made: [] };
+  function applyOutfit(){
+    if(!hero.obj) return;
+    disposeOutfit(outfit.made);
+    const hipsY = (hero.obj.getObjectByName('mixamorigHips') || { position: { y: .57 } }).position.y;
+    const mats = {
+      jewel: jewelMat,
+      head: hero.head || (hero.head = fitHead(hero.obj)),
+      garment: (kind, color) => new T.ShaderMaterial({
+        uniforms: Object.assign({ uCol:{ value: new T.Color(color) }, uKind:{ value: kind }, uHips:{ value: hipsY } }, U),
+        vertexShader: garmentV, fragmentShader: garmentF }),
+    };
+    outfit.made = buildOutfit(hero.obj, outfit, mats);
+  }
+
   const WALK = 1.36, RUN = 2.38;   // vitesses réelles des animations (m/s), pour que les pieds ne glissent pas
   const hero = { obj:null, mixer:null, acts:{}, cur:null,
     play(name, fade){ const a = this.acts[name]; if(!a || this.cur === a) return; a.reset().fadeIn(fade).play(); if(this.cur) this.cur.fadeOut(fade); this.cur = a; },
@@ -497,6 +570,7 @@ ${LVP}
       for(const c of obj.animations) hero.acts[c.name] = hero.mixer.clipAction(c);
       hero.obj = obj;
       applyHair();
+      applyOutfit();
     })
     .catch(e => console.warn('Héros non chargé', e));
 
@@ -1404,6 +1478,13 @@ ${LVP}
       try { localStorage.setItem('brume.hair', JSON.stringify(h)); } catch(e) {}
       applyHair();
     },
+    setOutfit(patch){
+      Object.assign(outfit, patch);
+      const o = {}; for(const k in DEFAULT_OUTFIT) o[k] = outfit[k];
+      store.set({ outfit: o });
+      try { localStorage.setItem('brume.outfit', JSON.stringify(o)); } catch(e) {}
+      applyOutfit();
+    },
     setPagne(hex){
       if(hex){ heroMat.uniforms.uPagne.value.set(hex); heroMat.uniforms.uPagneOn.value = 1; }
       else heroMat.uniforms.uPagneOn.value = 0;
@@ -1431,6 +1512,7 @@ ${LVP}
   setLook('midi', true);
   try { const saved = localStorage.getItem('brume.pagne'); if(saved) api.setPagne(saved); } catch(e) {}
   try { const h = JSON.parse(localStorage.getItem('brume.hair') || 'null'); if(h) api.setHair(h); } catch(e) {}
+  try { const o = JSON.parse(localStorage.getItem('brume.outfit') || 'null'); if(o) api.setOutfit(o); } catch(e) {}
   resize();
   manageSites();
 

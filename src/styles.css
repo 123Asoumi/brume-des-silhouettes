@@ -168,3 +168,15 @@
 .tailles button{font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;padding:6px 9px;border:1px solid var(--rule);background:transparent;color:var(--ink);cursor:pointer}
 .tailles button[aria-pressed="true"]{background:var(--ink);color:var(--paper);border-color:var(--ink)}
 .tailles button:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+.onglets{display:flex;border-bottom:1px solid var(--rule)}
+.onglets button{flex:1;font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;padding:9px 4px;
+  background:transparent;border:0;border-bottom:2px solid transparent;color:var(--soft);cursor:pointer;margin-bottom:-1px}
+.onglets button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--ink)}
+.onglets button:focus-visible{outline:2px solid var(--ink);outline-offset:-2px}
+.coches{display:grid;gap:6px}
+.coche{display:flex;align-items:center;gap:10px;padding:9px 10px;border:1px solid var(--rule);background:transparent;cursor:pointer;
+  font-family:var(--mono);font-size:11px;letter-spacing:.04em;color:var(--ink);text-align:left}
+.coche span{width:16px;height:16px;border:1.5px solid var(--ink);flex:none;display:grid;place-items:center}
+.coche[aria-pressed="true"]{border-color:var(--ink)}
+.coche[aria-pressed="true"] span{background:var(--ink);box-shadow:inset 0 0 0 3px var(--paper)}
+.coche:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
