@@ -165,11 +165,12 @@
   <div class="carte-box">
     <div class="carte-top">
       <h2>Où veux-tu aller ?</h2>
-      <div class="tabs"><button data-v="proche" aria-pressed="true">Autour de toi</button><button data-v="plaine" aria-pressed="false">La plaine</button></div>
+      <div class="tabs"><button data-v="proche" aria-pressed="true">Autour de toi</button><button data-v="village" aria-pressed="false">Village-Visage</button><button data-v="univers" aria-pressed="false">L’univers</button></div>
+      <div class="tabs"><button id="zout" type="button" aria-label="Dézoomer">−</button><button id="zin" type="button" aria-label="Zoomer">+</button></div>
       <button class="carte-x" id="carte-x" type="button">Fermer</button>
     </div>
     <canvas id="carte-c"></canvas>
-    <p class="carte-note">Touche un endroit de la carte : tu y seras téléporté.</p>
+    <p class="carte-note">Glisse pour te déplacer, molette ou pincement pour zoomer. Touche un endroit : tu y seras téléporté.</p>
   </div>
 </div>
 <div class="flash" id="flash"></div>
@@ -177,7 +178,7 @@
   <div>
     <p class="k">Niveau 1</p>
     <h2>Rallumer le feu</h2>
-    <p>Le feu de ta case s’est éteint pendant la nuit. Rapporte trois morceaux de bois : un au bord du lac, un chez les cochons masqués, un au pied des titans.</p>
+    <p>Le feu de ta case s’est éteint pendant la nuit. Rapporte trois morceaux de bois : un au bord du lac, un chez les cochons masqués, et le dernier dans le palais de l’œil gauche du Village-Visage, au pied des titans. Ses rues grouillent de bêtes masquées.</p>
     <p class="small">Pour aller loin, lance le sort de téléportation : bouton Sort, ou touche T.</p>
     <button id="go" type="button">Commencer</button>
   </div>
@@ -406,13 +407,14 @@ ${LVP}
   blade.setAttribute('aRnd', new T.InstancedBufferAttribute(gRnd, 4));
   blade.instanceCount = GN;
   function updateGrass(px, pz){
+    const nearHuts = obstacles.filter(o => o.kind === 'hut' && Math.hypot(o.x - px, o.z - pz) < GR + o.r + 5);
     for(let i=0;i<GN;i++){
       const wx = gOX[i] + GW*Math.round((px - gOX[i])/GW);
       const wz = gOZ[i] + GW*Math.round((pz - gOZ[i])/GW);
       const dens = fbm(wx*.012, wz*.012, 2);
       const k = i*4;
       gBase[k] = wx; gBase[k+1] = groundH(wx,wz); gBase[k+2] = wz;
-      gBase[k+3] = Math.max(0, Math.min(1, (dens-.36)*3.2)) * clearMask(wx, wz);
+      gBase[k+3] = Math.max(0, Math.min(1, (dens-.36)*3.2)) * clearMask(wx, wz, nearHuts);
     }
     aBase.needsUpdate = true;
   }
@@ -1085,9 +1087,55 @@ ${LVP}
     const roof = new T.Mesh(new T.ConeGeometry(HR + .75, 2.5, 44), titanMat); roof.position.set(x, y + 2.3 + 1.2, z); scene.add(roof);
     obstacles.push({ x, z, r: HR, kind:'hut', door });
   }
-  function clearMask(x, z){
+  // ---- le Village-Visage : des centaines de cases dessinent un grand visage autour des veilleurs ----
+  const FACE = { x: curated[0].x, z: curated[0].z };
+  const FL = (u, w) => [FACE.x + RGT[0]*u + FWD[0]*w, FACE.z + RGT[1]*u + FWD[1]*w];
+  const villageHuts = [];
+  {
+    const R9 = rng(909);
+    const add = (u, w, r, palace) => { const [x, z] = FL(u, w); villageHuts.push({ x, z, r, palace: !!palace }); };
+    for(let a = 0; a < Math.PI*2; a += .031) add(Math.sin(a)*1300 + (R9()-.5)*20, Math.cos(a)*1600 + (R9()-.5)*20, 6 + R9()*7);   // contour
+    for(const s of [-1, 1]){
+      add(s*480, 380, 110, true);                                                                                    // œil : palais géant
+      for(let a = 0; a < Math.PI*2; a += Math.PI/8) add(s*480 + Math.sin(a)*190, 380 + Math.cos(a)*150, 16 + R9()*6); // paupières
+      for(let i = 0; i < 9; i++){ const t = i/8; add(s*(250 + t*450), 640 + Math.sin(t*Math.PI)*90, 12 + R9()*4); }   // sourcils
+      for(let i = 0; i < 3; i++) for(let j = 0; j < 3; j++) add(s*(780 + i*55), -150 - j*70 - i*20, 9);           // scarifications
+    }
+    for(let i = 0; i < 8; i++){ const t = i/7; add((R9()-.5)*10, 220 - t*440, 10 + t*20); }                         // nez
+    for(const s of [-1, 1]) add(s*95, -305, 45, true);                                                               // narines-palais
+    for(let i = 0; i <= 22; i++){ const u = -620 + i*(1240/22); if(Math.abs(u) > 120) add(u, -700 + u*u/1900, 17 + R9()*5); }   // bouche
+    add(0, -735, 70, true);                                                                                          // palais de la bouche
+  }
+  {
+    const instV = `${LVP}
+      varying vec3 vW; varying vec3 vN;
+      void main(){ mat4 m = modelMatrix * instanceMatrix; vec4 w = m*vec4(position,1.); vW = w.xyz; vN = normalize(mat3(m)*normal);
+        gl_Position = projectionMatrix*viewMatrix*w; ${LV} }`;
+    const wallInst = new T.ShaderMaterial({ uniforms: U, vertexShader: instV, fragmentShader: stoneMat.fragmentShader, side: T.DoubleSide });
+    const roofInst = new T.ShaderMaterial({ uniforms: U, vertexShader: instV, fragmentShader: titanMat.fragmentShader });
+    const unitWall = new T.CylinderGeometry(1, 1, .88, 40, 1, true, .45, Math.PI*2 - .9); unitWall.translate(0, .44, 0);
+    const unitRoof = new T.ConeGeometry(1.29, .96, 40); unitRoof.translate(0, .88 + .48, 0);
+    const n = villageHuts.length;
+    const walls = new T.InstancedMesh(unitWall, wallInst, n), roofs = new T.InstancedMesh(unitRoof, roofInst, n);
+    const M4 = new T.Matrix4(), Q = new T.Quaternion(), V3 = new T.Vector3(), SC = new T.Vector3(), YA = new T.Vector3(0, 1, 0);
+    const toStart = Math.atan2(-FWD[0], -FWD[1]);
+    villageHuts.forEach((h, i) => {
+      h.door = h.palace ? toStart : Math.atan2(FACE.x - h.x, FACE.z - h.z) + (R7()-.5)*.6;
+      const y = height(h.x, h.z) - .04*h.r, sy = h.palace ? .8 : 1;
+      M4.compose(V3.set(h.x, y, h.z), Q.setFromAxisAngle(YA, h.door), SC.set(h.r, h.r*sy, h.r));
+      walls.setMatrixAt(i, M4); roofs.setMatrixAt(i, M4);
+      obstacles.push({ x:h.x, z:h.z, r:h.r, kind:'hut', door:h.door, village:true, palace:h.palace });
+      if(h.palace){   // un masque géant au-dessus de la porte du palais
+        const m = new T.Mesh(maskGeo, maskMats[i % 6]);
+        m.position.set(h.x + Math.sin(h.door)*(h.r + .6), y + h.r*.55, h.z + Math.cos(h.door)*(h.r + .6));
+        m.rotation.y = h.door; m.scale.set(h.r*.5, h.r*.75, h.r*.5); m.frustumCulled = false; scene.add(m);
+      }
+    });
+    walls.frustumCulled = roofs.frustumCulled = false; scene.add(walls, roofs);
+  }
+  function clearMask(x, z, list = obstacles){
     if(Math.hypot(x-LAKE.x, z-LAKE.z) < LAKE.R + 1) return 0;
-    for(const o of obstacles) if(o.kind === 'hut' && Math.hypot(x-o.x, z-o.z) < o.r + .2) return 0;
+    for(const o of list) if(o.kind === 'hut' && Math.hypot(x-o.x, z-o.z) < o.r + .2) return 0;
     return 1;
   }
   function blocked(ax, az, bx, bz){
@@ -1133,6 +1181,27 @@ ${LVP}
     const h = P(fw, rt), p = makePig(v);
     return Object.assign(p, { home:h, x:h[0], z:h[1], yaw:i*2.1, state:'flane', tx:h[0], tz:h[1], wait:R7()*3, lastX:0, lastZ:0, v:0 });
   });
+
+  // bêtes masquées du Village-Visage (certaines énormes), et gardiens devant les palais des yeux
+  {
+    const R8 = rng(4242);
+    const addBeast = (bx, bz, big, v) => {
+      const p = makePig(v); p.root.scale.setScalar(big); p.root.position.set(bx, height(bx, bz), bz);
+      pigs.push(Object.assign(p, { home:[bx, bz], x:bx, z:bz, yaw:R8()*6.28, state:'flane', tx:bx, tz:bz, wait:R8()*3, lastX:0, lastZ:0, v:0, big, village:true }));
+    };
+    let n = 0, tries = 0;
+    while(n < 26 && tries < 800){
+      tries++;
+      const u = (R8()-.5)*2400, w = (R8()-.5)*3000;
+      if((u/1250)**2 + (w/1550)**2 > 1) continue;
+      const [bx, bz] = FL(u, w);
+      if(obstacles.some(o => Math.hypot(o.x - bx, o.z - bz) < o.r + 8)) continue;
+      addBeast(bx, bz, R8() < .3 ? 1.8 : 1 + R8()*.3, [0,1,3,4,5][n % 5]); n++;
+    }
+    for(const h of villageHuts) if(h.palace && h.r > 100)
+      for(const s of [-1, 1]){ const d = h.r + 22, side = s*30;
+        addBeast(h.x + Math.sin(h.door)*d + Math.cos(h.door)*side, h.z + Math.cos(h.door)*d - Math.sin(h.door)*side, 1.6, 4); }
+  }
 
   // le gros poisson masqué du lac
   const fish = (() => {
@@ -1243,7 +1312,7 @@ ${LVP}
     p.v += (sp - p.v) * Math.min(1, dt*3);
     if(p.v > .02){ p.yaw += wrap(Math.atan2(tx-p.x, tz-p.z) - p.yaw) * Math.min(1, dt*4);
       p.x += Math.sin(p.yaw)*p.v*dt; p.z += Math.cos(p.yaw)*p.v*dt; }
-    for(const o of obstacles){ const ox = p.x-o.x, oz = p.z-o.z, od = Math.hypot(ox, oz) || .001, m = o.r + 1.1;
+    for(const o of obstacles){ const ox = p.x-o.x, oz = p.z-o.z, od = Math.hypot(ox, oz) || .001, m = o.r + 1.1*(p.big || 1);
       if(od < m){ p.x = o.x + ox/od*m; p.z = o.z + oz/od*m; } }
     { const ox = p.x-LAKE.x, oz = p.z-LAKE.z, od = Math.hypot(ox, oz) || .001, m = LAKE.R + .5;
       if(od < m){ p.x = LAKE.x + ox/od*m; p.z = LAKE.z + oz/od*m; } }
@@ -1251,7 +1320,7 @@ ${LVP}
     p.legs.forEach((l, i) => { l.rotation.x = Math.sin(p.phase + (i === 0 || i === 3 ? 0 : Math.PI)) * Math.min(.7, p.v*.35); });
     p.head.rotation.x = (p.state === 'cherche' && p.v < .1) ? .35 + Math.sin(game.t*6)*.12 : Math.sin(p.phase*.5)*.05;
     p.root.position.set(p.x, height(p.x, p.z), p.z); p.root.rotation.y = p.yaw;
-    if(p.state === 'chasse' && d < 1.9) game.catch('Un cochon masqué t’a attrapé');
+    if(p.state === 'chasse' && d < 1.9*(p.big || 1)) game.catch('Un cochon masqué t’a attrapé');
   }
 
   function updateFish(dt, hx, hz, hidden){
@@ -1296,7 +1365,7 @@ ${LVP}
   function updateGame(dt, hx, hz){
     game.t += dt;
     const hidden = !!inHut(hx, hz);
-    for(const p of pigs) updatePig(p, dt, hx, hz, hidden);
+    for(const p of pigs) if(!p.village || Math.hypot(p.x - hx, p.z - hz) < 700) updatePig(p, dt, hx, hz, hidden);
     updateFish(dt, hx, hz, hidden);
     updateGiants(dt, hx, hz);
     if(game.lock > 0){
@@ -1352,7 +1421,7 @@ ${LVP}
     const spots = [
       { label:'au bord du lac', x: LAKE.x + Math.sin(a)*rr, z: LAKE.z + Math.cos(a)*rr, float:true },
       { label:'chez les cochons', x: P(66, 4)[0], z: P(66, 4)[1] },
-      { label:'au pied des titans', x: curated[0].x, z: curated[0].z },
+      { label:'dans le palais de l’œil gauche', x: FL(-480, 380)[0], z: FL(-480, 380)[1] },
     ];
     for(const s of spots){
       const it = Object.assign(s, { mesh: makeWood(), taken:false, phase: R7()*6 });
@@ -1464,7 +1533,7 @@ ${LVP}
   let mapView = 'proche', hover = null;
   const SHORT = { regard:'Veilleurs', feu:'Feu', combat:'Combat', danse:'Danse', jeu:'Jeu', marche:'Marcheurs' };
   function clearKeys(){ for(const k in keys) keys[k] = false; stick.x = stick.y = 0; }
-  function openSpell(){ if(ui.paused()) return; ui.spell = true; clearKeys(); bulle.hidden = false; sortErr.hidden = true; sortIn.value = ''; placeBubble(); setTimeout(() => sortIn.focus(), 30); }
+  function openSpell(){ if(ui.paused()) return; ui.spell = true; clearKeys(); bulle.hidden = false; sortErr.hidden = true; sortIn.value = ''; placeBubble(); sortIn.focus(); setTimeout(() => sortIn.focus(), 30); }
   function closeSpell(){ ui.spell = false; bulle.hidden = true; sortIn.blur(); }
   function trySpell(){
     if(norm(sortIn.value) === norm(SPELL)){ closeSpell(); openMap(); return true; }
@@ -1485,19 +1554,25 @@ ${LVP}
     bulle.style.top = Math.max(190, (-v.y*.5 + .5)*r.height) + 'px';
   }
 
-  function openMap(){ ui.map = true; clearKeys(); carte.hidden = false; sizeMap(); drawMap(); }
+  function openMap(){ ui.map = true; clearKeys(); carte.hidden = false; sizeMap(); setView(mapView); drawMap(); }
   function closeMap(){ ui.map = false; carte.hidden = true; hover = null; }
   document.getElementById('carte-x').addEventListener('click', closeMap);
   document.querySelectorAll('[data-v]').forEach(b => b.addEventListener('click', () => {
     mapView = b.dataset.v;
     document.querySelectorAll('[data-v]').forEach(o => o.setAttribute('aria-pressed', String(o === b)));
-    drawMap();
+    setView(mapView); drawMap();
   }));
   function sizeMap(){
     const s = Math.max(240, Math.min(innerWidth - 40, innerHeight - 190, 720)), dpr = Math.min(devicePixelRatio || 1, 2);
     mapC.style.width = mapC.style.height = s + 'px'; mapC.width = mapC.height = Math.round(s*dpr);
   }
-  function view(){ return mapView === 'proche' ? { cx:x, cz:z, r:150 } : (() => { const c = P(31000, 0); return { cx:c[0], cz:c[1], r:34000 }; })(); }
+  const ms = { cx:0, cz:0, r:150 };
+  const clampR = r => Math.max(40, Math.min(220000, r));
+  function setView(name){
+    if(name === 'proche') Object.assign(ms, { cx:x, cz:z, r:150 });
+    else if(name === 'village') Object.assign(ms, { cx:FACE.x, cz:FACE.z, r:1900 });
+    else { const c = P(31000, 0); Object.assign(ms, { cx:c[0], cz:c[1], r:72000 }); }
+  }
   function toScreen(v, wx, wz){
     const W = mapC.width, S = W/2*.92, dx = wx - v.cx, dz = wz - v.cz;
     return [W/2 + (dx*RGT[0] + dz*RGT[1])/v.r*S, W/2 - (dx*FWD[0] + dz*FWD[1])/v.r*S];
@@ -1506,49 +1581,104 @@ ${LVP}
     const W = mapC.width, S = W/2*.92, u = (sx - W/2)/S*v.r, w = -(sy - W/2)/S*v.r;
     return [v.cx + RGT[0]*u + FWD[0]*w, v.cz + RGT[1]*u + FWD[1]*w];
   }
+  function niceLen(m){ const p = Math.pow(10, Math.floor(Math.log10(m))), f = m/p; return (f >= 5 ? 5 : f >= 2 ? 2 : 1)*p; }
   function drawMap(){
-    const g = mapC.getContext('2d'), W = mapC.width, d = W/(parseFloat(mapC.style.width) || W), v = view();
+    const g = mapC.getContext('2d'), W = mapC.width, d = W/(parseFloat(mapC.style.width) || W), v = ms;
     const px = n => n*d, rad = m => m/v.r*W/2*.92;
+    const inView = (sx, sy, m = 0) => sx > -m && sy > -m && sx < W + m && sy < W + m;
     g.fillStyle = '#ebe7df'; g.fillRect(0, 0, W, W);
     g.strokeStyle = 'rgba(22,21,20,.07)'; g.lineWidth = px(1);
-    for(let i = 1; i < 8; i++){ const p = i*W/8; g.beginPath(); g.moveTo(p, 0); g.lineTo(p, W); g.moveTo(0, p); g.lineTo(W, p); g.stroke(); }
-    const label = (t, sx, sy, col = '#3d3a35') => { g.fillStyle = col; g.font = `${px(11)}px "IBM Plex Mono", monospace`; g.textAlign = 'center'; g.fillText(t, sx, sy); };
+    for(let i = 1; i < 8; i++){ const q = i*W/8; g.beginPath(); g.moveTo(q, 0); g.lineTo(q, W); g.moveTo(0, q); g.lineTo(W, q); g.stroke(); }
+    const label = (t, sx, sy, col = '#3d3a35', size = 11) => { g.fillStyle = col; g.font = `${px(size)}px "IBM Plex Mono", monospace`; g.textAlign = 'center'; g.fillText(t, sx, sy); };
     const dot = (sx, sy, r, col) => { g.fillStyle = col; g.beginPath(); g.arc(sx, sy, r, 0, 7); g.fill(); };
-    if(mapView === 'proche'){
-      let [sx, sy] = toScreen(v, LAKE.x, LAKE.z); dot(sx, sy, rad(LAKE.R), '#5f90b9'); label('lac', sx, sy + px(4), '#eef3f7');
-      for(const o of obstacles){ [sx, sy] = toScreen(v, o.x, o.z);
-        if(o.kind === 'rock') dot(sx, sy, Math.max(px(3), rad(o.r)), '#a7a29a');
-        else { dot(sx, sy, Math.max(px(4), rad(o.r)), '#2a2826'); if(o === homeHut) label('ta case', sx, sy - Math.max(px(8), rad(o.r)) - px(5)); } }
-      for(const p of pigs){ [sx, sy] = toScreen(v, p.x, p.z); dot(sx, sy, px(4.5), '#161514'); }
-      label('50 m', px(36), W - px(12)); g.fillStyle = '#161514'; g.fillRect(px(12), W - px(26), rad(50), px(2));
-    } else {
-      let [sx, sy] = toScreen(v, 0, 0); dot(sx, sy, px(4), '#5f90b9'); label('village', sx, sy + px(16));
-      const seen = new Set();
-      for(const s of [...curated, ...live.values()]){
-        if(seen.has(s.key)) continue; seen.add(s.key);
-        [sx, sy] = toScreen(v, s.x, s.z); if(sx < 0 || sy < 0 || sx > W || sy > W) continue;
-        g.fillStyle = '#161514'; g.beginPath(); g.ellipse(sx, sy - px(7), px(4), px(9), 0, 0, 7); g.fill();
-        g.fillRect(sx - px(3), sy, px(1.5), px(7)); g.fillRect(sx + px(1.5), sy, px(1.5), px(7));
-        if(s.type === 'feu') dot(sx, sy + px(10), px(3.5), '#f07a1d');
-        label(SHORT[s.type], sx, sy + px(s.type === 'feu' ? 26 : 20));
+    const titan = (sx, sy, k = 1) => { g.fillStyle = '#161514'; g.beginPath(); g.ellipse(sx, sy - px(7*k), px(4*k), px(9*k), 0, 0, 7); g.fill();
+      g.fillRect(sx - px(3*k), sy, px(1.5*k), px(7*k)); g.fillRect(sx + px(1.5*k), sy, px(1.5*k), px(7*k)); };
+    let sx, sy;
+    // lac
+    [sx, sy] = toScreen(v, LAKE.x, LAKE.z); dot(sx, sy, Math.max(px(3), rad(LAKE.R)), '#5f90b9');
+    if(v.r < 400) label('lac', sx, sy + px(4), '#eef3f7');
+    // rochers et cases (toutes, y compris le Village-Visage)
+    for(const o of obstacles){
+      if(o.kind === 'rock' && v.r > 2500) continue;
+      [sx, sy] = toScreen(v, o.x, o.z); if(!inView(sx, sy, rad(o.r) + 10)) continue;
+      if(o.kind === 'rock') dot(sx, sy, Math.max(px(1.5), rad(o.r)), '#a7a29a');
+      else {
+        dot(sx, sy, Math.max(px(o.palace ? 2.5 : 1.2), rad(o.r)), '#2a2826');
+        if(o.palace && rad(o.r) > px(14)) dot(sx, sy, rad(o.r)*.55, '#5e5a53');
+        if(o === homeHut && v.r < 3000) label('ta case', sx, sy - Math.max(px(8), rad(o.r)) - px(5));
       }
-      label('10 km', px(40), W - px(12)); g.fillStyle = '#161514'; g.fillRect(px(12), W - px(26), rad(10000), px(2));
     }
-    level.items.forEach((it, i) => { if(it.taken || (mapView === 'plaine' && Math.hypot(it.x, it.z) < 1000)) return; const [sx, sy] = toScreen(v, it.x, it.z);
-      if(sx < 0 || sy < 0 || sx > W || sy > W) return;
-      g.fillStyle = '#8a5a30'; g.fillRect(sx - px(6), sy - px(6), px(12), px(12));
-      label('bois ' + (i+1), sx, sy - px(10), '#6b4423'); });
-    { const [sx, sy] = toScreen(v, x, z); dot(sx, sy, px(7), '#ebe7df'); dot(sx, sy, px(5), '#161514');
-      g.strokeStyle = '#161514'; g.lineWidth = px(2); g.beginPath();
+    // bêtes masquées
+    if(v.r < 6000) for(const p of pigs){ [sx, sy] = toScreen(v, p.x, p.z); if(inView(sx, sy)) dot(sx, sy, px(p.state === 'chasse' ? 4.5 : 3.2)*(v.r < 600 ? 1.3 : 1), p.state === 'chasse' ? '#9a3b1c' : '#161514'); }
+    // titans : un par un quand on est assez près, sinon un repère par scène
+    const seen = new Set();
+    for(const s of live.values()){
+      seen.add(s.key);
+      if(v.r < 26000){ for(const J of s.titans){ [sx, sy] = toScreen(v, J.x, J.z); if(inView(sx, sy, 20)) titan(sx, sy, .8); } }
+      [sx, sy] = toScreen(v, s.x, s.z); if(!inView(sx, sy, 40)) continue;
+      if(v.r >= 26000) titan(sx, sy);
+      if(s.type === 'feu') dot(sx, sy + px(10), px(3.5), '#f07a1d');
+      if(v.r > 2600) label(SHORT[s.type], sx, sy + px(s.type === 'feu' ? 26 : 20));
+    }
+    const cs = 650*K, i0 = Math.floor((v.cx - v.r*1.5)/cs), i1 = Math.floor((v.cx + v.r*1.5)/cs), j0 = Math.floor((v.cz - v.r*1.5)/cs), j1 = Math.floor((v.cz + v.r*1.5)/cs);
+    if((i1 - i0)*(j1 - j0) < 400) for(let i = i0; i <= i1; i++) for(let j = j0; j <= j1; j++){
+      const gs = gridSite(i, j); if(!gs || seen.has(gs.key)) continue;
+      [sx, sy] = toScreen(v, gs.x, gs.z); if(!inView(sx, sy, 20)) continue;
+      g.globalAlpha = .55; titan(sx, sy, .8); if(gs.type === 'feu') dot(sx, sy + px(8), px(3), '#f07a1d'); g.globalAlpha = 1;
+      if(v.r > 2600) label(SHORT[gs.type], sx, sy + px(17), '#77726a', 10);
+    }
+    for(const c of curated) if(!seen.has(c.key)){ [sx, sy] = toScreen(v, c.x, c.z); if(inView(sx, sy, 20)){ titan(sx, sy); if(v.r > 2600) label(SHORT[c.type], sx, sy + px(20)); } }
+    // noms de lieux
+    if(v.r > 900){ [sx, sy] = toScreen(v, 0, 0); label('village', sx, sy + px(16));
+      [sx, sy] = toScreen(v, FACE.x, FACE.z); if(v.r < 30000) label('Village-Visage', sx, sy - rad(1650) - px(8), '#161514', 12); }
+    // bois
+    level.items.forEach((it, i) => { if(it.taken) return; [sx, sy] = toScreen(v, it.x, it.z); if(!inView(sx, sy)) return;
+      g.fillStyle = '#8a5a30'; g.fillRect(sx - px(6), sy - px(6), px(12), px(12)); label('bois ' + (i+1), sx, sy - px(10), '#6b4423'); });
+    // toi
+    [sx, sy] = toScreen(v, x, z);
+    if(inView(sx, sy)){ dot(sx, sy, px(7), '#ebe7df'); dot(sx, sy, px(5), '#161514');
       const hx = Math.sin(heroYaw)*RGT[0] + Math.cos(heroYaw)*RGT[1], hy = Math.sin(heroYaw)*FWD[0] + Math.cos(heroYaw)*FWD[1];
-      g.moveTo(sx, sy); g.lineTo(sx + hx*px(14), sy - hy*px(14)); g.stroke(); label('toi', sx, sy + px(20), '#161514'); }
+      g.strokeStyle = '#161514'; g.lineWidth = px(2); g.beginPath(); g.moveTo(sx, sy); g.lineTo(sx + hx*px(14), sy - hy*px(14)); g.stroke();
+      label('toi', sx, sy + px(20), '#161514'); }
+    // échelle
+    const L = niceLen(v.r*.45), txt = L >= 1000 ? (L/1000) + ' km' : L + ' m';
+    g.fillStyle = 'rgba(235,231,223,.85)'; g.fillRect(0, W - px(40), rad(L) + px(40), px(40));
+    g.fillStyle = '#161514'; g.fillRect(px(12), W - px(26), rad(L), px(2)); label(txt, px(12) + rad(L)/2, W - px(12));
     if(hover){ g.strokeStyle = '#161514'; g.lineWidth = px(1.5); g.beginPath(); g.arc(hover[0], hover[1], px(11), 0, 7); g.stroke();
       g.beginPath(); g.moveTo(hover[0] - px(17), hover[1]); g.lineTo(hover[0] + px(17), hover[1]); g.moveTo(hover[0], hover[1] - px(17)); g.lineTo(hover[0], hover[1] + px(17)); g.stroke(); }
   }
   const mapPt = e => { const r = mapC.getBoundingClientRect(), k = mapC.width / r.width; return [(e.clientX - r.left)*k, (e.clientY - r.top)*k]; };
-  mapC.addEventListener('pointermove', e => { hover = mapPt(e); drawMap(); });
+  const pts = new Map(); let moved = 0, pinch0 = null;
+  mapC.addEventListener('pointerdown', e => {
+    mapC.setPointerCapture(e.pointerId); pts.set(e.pointerId, mapPt(e)); if(pts.size === 1) moved = 0;
+    if(pts.size === 2){ const [a, b] = [...pts.values()]; pinch0 = { d: Math.hypot(a[0]-b[0], a[1]-b[1]) || 1, r: ms.r }; }
+  });
+  mapC.addEventListener('pointermove', e => {
+    const q = mapPt(e); hover = q;
+    if(pts.has(e.pointerId)){
+      const prev = pts.get(e.pointerId); pts.set(e.pointerId, q);
+      if(pts.size === 1){
+        const S = mapC.width/2*.92, du = (q[0]-prev[0])/S*ms.r, dw = -(q[1]-prev[1])/S*ms.r;
+        ms.cx -= RGT[0]*du + FWD[0]*dw; ms.cz -= RGT[1]*du + FWD[1]*dw; moved += Math.hypot(q[0]-prev[0], q[1]-prev[1]);
+      } else if(pts.size === 2 && pinch0){
+        const [a, b] = [...pts.values()]; ms.r = clampR(pinch0.r * pinch0.d / (Math.hypot(a[0]-b[0], a[1]-b[1]) || 1)); moved += 999;
+      }
+    }
+    drawMap();
+  });
+  const mapUp = e => {
+    const had = pts.has(e.pointerId); pts.delete(e.pointerId); if(pts.size < 2) pinch0 = null;
+    if(had && e.type === 'pointerup' && pts.size === 0 && moved < 8*(mapC.width / mapC.clientWidth)){ const [wx, wz] = toWorld(ms, ...mapPt(e)); teleport(wx, wz); }
+  };
+  mapC.addEventListener('pointerup', mapUp); mapC.addEventListener('pointercancel', mapUp);
   mapC.addEventListener('pointerleave', () => { hover = null; drawMap(); });
-  mapC.addEventListener('click', e => { const [wx, wz] = toWorld(view(), ...mapPt(e)); teleport(wx, wz); });
+  mapC.addEventListener('wheel', e => {
+    e.preventDefault(); const q = mapPt(e), before = toWorld(ms, ...q);
+    ms.r = clampR(ms.r * Math.pow(1.0018, e.deltaY)); const after = toWorld(ms, ...q);
+    ms.cx += before[0] - after[0]; ms.cz += before[1] - after[1]; drawMap();
+  }, { passive:false });
+  document.getElementById('zin').addEventListener('click', () => { ms.r = clampR(ms.r/2); drawMap(); });
+  document.getElementById('zout').addEventListener('click', () => { ms.r = clampR(ms.r*2); drawMap(); });
   function teleport(wx, wz){
     [x, z] = resolveHero(wx, wz); curV = 0; boost = 1; camY = height(x, z) + 2.4;
     closeMap();
