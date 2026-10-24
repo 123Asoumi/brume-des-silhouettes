@@ -13,7 +13,12 @@ const COULEURS = [
   ['#2a2826', 'Noir', '#2a2826'],
 ];
 
-const COIFFURES = [['aucune', 'Rasé'], ['courts', 'Twists courts'], ['milongs', 'Twists mi-longs'], ['longs', 'Twists longs']];
+const COIFFURES = [['aucune', 'Rasé'], ['twists', 'Twists'], ['afro', 'Afro'], ['locs', 'Locs']];
+const TAILLES = {
+  twists: [['petit', 'Courts'], ['moyen', 'Mi-longs'], ['grand', 'Longs']],
+  locs:   [['petit', 'Courtes'], ['moyen', 'Mi-longues'], ['grand', 'Longues']],
+  afro:   [['petit', 'Petit'], ['moyen', 'Moyen'], ['grand', 'Grand']],
+};
 const CHEVEUX = [['#1d1714', 'Noir'], ['#3b2a20', 'Brun'], ['#5a3a24', 'Châtain'], ['#6e2f1e', 'Auburn'], ['#a9823c', 'Doré'], ['#8f8b86', 'Gris']];
 
 export function Perso({ engine }){
@@ -26,14 +31,22 @@ export function Perso({ engine }){
       <h2>Coiffure</h2>
       <div className="nuancier">
         {COIFFURES.map(([id, name]) => (
-          <button key={id} type="button" className="nuance texte" aria-pressed={hair.style === id} onClick={() => engine.setHair(id)}>{name}</button>
+          <button key={id} type="button" className="nuance texte" aria-pressed={hair.style === id} onClick={() => engine.setHair({ style: id })}>{name}</button>
         ))}
       </div>
+      {TAILLES[hair.style] && (
+        <div className="tailles" role="group" aria-label={hair.style === 'afro' ? 'Volume' : 'Longueur'}>
+          <span>{hair.style === 'afro' ? 'Volume' : 'Longueur'}</span>
+          {TAILLES[hair.style].map(([id, name]) => (
+            <button key={id} type="button" aria-pressed={hair.size === id} onClick={() => engine.setHair({ size: id })}>{name}</button>
+          ))}
+        </div>
+      )}
       {hair.style !== 'aucune' && (
         <div className="pastilles" role="group" aria-label="Couleur des cheveux">
           {CHEVEUX.map(([hex, name]) => (
             <button key={hex} type="button" className="pastille" aria-pressed={hair.color === hex} aria-label={name} title={name}
-              style={{ background: hex }} onClick={() => engine.setHair(null, hex)} />
+              style={{ background: hex }} onClick={() => engine.setHair({ color: hex })} />
           ))}
         </div>
       )}

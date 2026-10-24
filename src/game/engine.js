@@ -458,14 +458,14 @@ ${LVP}
       }`, side: T.DoubleSide });
   const capMat = new T.ShaderMaterial({ uniforms: hairMat.uniforms, vertexShader: hairMat.vertexShader.replace('attribute float aAlong;', '').replace('vA = aAlong;', 'vA = 0.;'),
     fragmentShader: hairMat.fragmentShader });
-  const hair = { style: 'aucune', color: '#1d1714', group: null };
+  const hair = { style: 'aucune', size: 'moyen', color: '#1d1714', group: null };
   function applyHair(){
     if(!hero.obj) return;
     if(!hero.head) hero.head = fitHead(hero.obj);
     const head = hero.head; if(!head) return;
     if(hair.group){ head.bone.remove(hair.group); hair.group.traverse(o => o.geometry && o.geometry.dispose()); hair.group = null; }
     hairMat.uniforms.uHair.value.set(hair.color);
-    const geo = buildHair(head, hair.style);
+    const geo = buildHair(head, hair.style, hair.size);
     if(!geo) return;
     const g = new T.Group();
     g.add(new T.Mesh(buildCap(head), capMat), new T.Mesh(geo, hairMat));
@@ -1393,11 +1393,15 @@ ${LVP}
     replay(){ store.set({ fin:null }); resetLevel(); game.respawn = true; },
     openPerso(){ const s = store.get(); if(s.intro || paused()) return; clearKeys(); store.set({ perso:true }); },
     closePerso(){ store.set({ perso:false }); },
-    setHair(style, color){
+    setHair({ style, size, color } = {}){
+      const OLD = { courts:'petit', milongs:'moyen', longs:'grand' };          // anciens réglages sauvegardés
+      if(style && OLD[style]){ size = size || OLD[style]; style = 'twists'; }
       if(style) hair.style = style;
+      if(size) hair.size = size;
       if(color) hair.color = color;
-      store.set({ hair: { style: hair.style, color: hair.color } });
-      try { localStorage.setItem('brume.hair', JSON.stringify({ style: hair.style, color: hair.color })); } catch(e) {}
+      const h = { style: hair.style, size: hair.size, color: hair.color };
+      store.set({ hair: h });
+      try { localStorage.setItem('brume.hair', JSON.stringify(h)); } catch(e) {}
       applyHair();
     },
     setPagne(hex){
@@ -1426,7 +1430,7 @@ ${LVP}
 
   setLook('midi', true);
   try { const saved = localStorage.getItem('brume.pagne'); if(saved) api.setPagne(saved); } catch(e) {}
-  try { const h = JSON.parse(localStorage.getItem('brume.hair') || 'null'); if(h) api.setHair(h.style, h.color); } catch(e) {}
+  try { const h = JSON.parse(localStorage.getItem('brume.hair') || 'null'); if(h) api.setHair(h); } catch(e) {}
   resize();
   manageSites();
 

@@ -162,3 +162,9 @@
 .pastille[aria-pressed="true"]{outline:2px solid var(--ink);outline-offset:2px}
 .pastille:focus-visible{outline:2px solid var(--ink);outline-offset:3px}
 @media (max-width:640px){ .perso{max-height:62vh} }
+
+.tailles{display:flex;flex-wrap:wrap;align-items:center;gap:4px}
+.tailles span{font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--soft);margin-right:6px}
+.tailles button{font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;padding:6px 9px;border:1px solid var(--rule);background:transparent;color:var(--ink);cursor:pointer}
+.tailles button[aria-pressed="true"]{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.tailles button:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
