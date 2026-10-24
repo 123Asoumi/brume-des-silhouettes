@@ -29,6 +29,7 @@ export const store = createStore({
   scene: '', info: '',
   audioOn: false, audioLoading: false, credit: false,
   rush: false, look: 'midi',
+  perso: false, pagne: null,
   touch: isTouch,
 });
 

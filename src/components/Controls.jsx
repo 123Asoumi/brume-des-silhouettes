@@ -12,6 +12,7 @@ export function Lum({ engine }){
         <button key={id} type="button" aria-pressed={look === id} onClick={() => engine.setLook(id)}>{name}</button>
       ))}
       <span className="sep" />
+      <button type="button" onClick={() => engine.openPerso()}>Personnage</button>
       <button type="button" onClick={() => engine.openSpell()}>Sort</button>
       <button type="button" aria-pressed={rush} onClick={() => engine.toggleRush()}>Foncer</button>
       <button type="button" aria-pressed={audioOn} onClick={() => engine.toggleAudio()}>{loading ? 'Kora · chargement' : 'Kora'}</button>

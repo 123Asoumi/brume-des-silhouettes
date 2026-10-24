@@ -6,6 +6,7 @@ import { Lum, Stick, Courir } from './components/Controls.jsx';
 import { Bulle } from './components/Spell.jsx';
 import { Carte } from './components/MapOverlay.jsx';
 import { Mange, Flash, Intro, Fin } from './components/Screens.jsx';
+import { Perso } from './components/Perso.jsx';
 
 export default function App(){
   const canvasRef = useRef(null);
@@ -35,6 +36,7 @@ export default function App(){
           {touch && <Courir engine={engine} />}
           <Bulle engine={engine} />
           <Carte engine={engine} />
+          <Perso engine={engine} />
           <Mange />
           <Flash />
           <Intro engine={engine} />

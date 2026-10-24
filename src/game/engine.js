@@ -408,7 +408,7 @@ ${LVP}
 
   /* ================= Le héros : petit garçon en pagne, avec sa texture d'origine ================= */
   const heroTex = new T.TextureLoader().load(ASSET('hero.jpg'));
-  const heroMat = new T.ShaderMaterial({ uniforms: Object.assign({ map:{value: heroTex} }, U),
+  const heroMat = new T.ShaderMaterial({ uniforms: Object.assign({ map:{value: heroTex}, uPagne:{value: new T.Color('#2c3e8f')}, uPagneOn:{value: 0} }, U),
     vertexShader: `${LVP}
 #include <skinning_pars_vertex>
       varying vec3 vW; varying vec3 vN; varying vec2 vUv;
@@ -424,11 +424,15 @@ ${LVP}
     fragmentShader: `
       precision highp float;
       varying vec3 vW; varying vec3 vN; varying vec2 vUv;
-      uniform sampler2D map; uniform vec3 uSun,uSky,uCam; uniform float uTime;
+      uniform sampler2D map; uniform vec3 uSun,uSky,uCam,uPagne; uniform float uTime,uPagneOn;
       ${GRAIN}
       ${HAZE}
       void main(){
         vec3 tx = texture2D(map, vUv).rgb;
+        // le pagne est la seule zone claire de la texture : on la teinte en gardant ses plis et ses ombres
+        float lum = dot(tx, vec3(.299, .587, .114));
+        float m = smoothstep(.50, .60, lum) * uPagneOn;
+        tx = mix(tx, uPagne * clamp(lum/.72, 0., 1.25), m);
         float l = .72 + .38*max(dot(normalize(vN), uSun), 0.);
         vec3 c = tx * l + (grain()-.5)*.05;
         gl_FragColor = vec4(mix(c, uSky, haze(vW)), 1.);
@@ -1168,7 +1172,7 @@ ${LVP}
   let walked = 0, boost = 1, rush = false, lastBuild = -1, curV = 0, runHold = false;
   const keys = {};
   const stick = { x:0, y:0 };
-  const paused = () => { const s = store.get(); return s.spell || s.map || !!s.fin; };
+  const paused = () => { const s = store.get(); return s.spell || s.map || s.perso || !!s.fin; };
   function clearKeys(){ for(const k in keys) keys[k] = false; stick.x = stick.y = 0; }
   on(window, 'keydown', e => {
     const tag = e.target && e.target.tagName;
@@ -1350,6 +1354,14 @@ ${LVP}
       dust(x, z, 7, 12, .5); if(audio.on) audio.boom(.4);
     },
     replay(){ store.set({ fin:null }); resetLevel(); game.respawn = true; },
+    openPerso(){ const s = store.get(); if(s.intro || paused()) return; clearKeys(); store.set({ perso:true }); },
+    closePerso(){ store.set({ perso:false }); },
+    setPagne(hex){
+      if(hex){ heroMat.uniforms.uPagne.value.set(hex); heroMat.uniforms.uPagneOn.value = 1; }
+      else heroMat.uniforms.uPagneOn.value = 0;
+      store.set({ pagne: hex || null });
+      try { if(hex) localStorage.setItem('brume.pagne', hex); else localStorage.removeItem('brume.pagne'); } catch(e) {}
+    },
     bubbleAnchor(){
       const v = new T.Vector3(x, height(x, z) + 1.75, z).project(camera), r = canvas.getBoundingClientRect();
       return { x:(v.x*.5 + .5)*r.width, y:(-v.y*.5 + .5)*r.height, w:r.width, h:r.height };
@@ -1369,6 +1381,7 @@ ${LVP}
   on(window, 'resize', resize);
 
   setLook('midi', true);
+  try { const saved = localStorage.getItem('brume.pagne'); if(saved) api.setPagne(saved); } catch(e) {}
   resize();
   manageSites();
 
@@ -1379,7 +1392,16 @@ ${LVP}
     clock += dt;
     U.uTime.value = clock;
     easeLook(1 - Math.pow(0.02, dt));
-    if(paused()){ renderer.render(scene, camera); return; }   // le temps s'arrête pendant le sort et la carte
+    if(paused()){                       // le temps s'arrête pendant le sort, la carte et la personnalisation
+      if(store.get().perso){            // la caméra tourne lentement autour du garçon pour le montrer
+        camYaw += dt*.35;
+        const hy = height(x, z), d = 4.2, bx = x - Math.sin(camYaw)*d, bz = z - Math.cos(camYaw)*d;
+        camera.position.set(bx, hy + 1.35, bz); camera.lookAt(x, hy + .75, z);
+        U.uCam.value.copy(camera.position); sky.position.copy(camera.position);
+        hero.update(dt, 0);
+      }
+      renderer.render(scene, camera); return;
+    }
 
     // direction voulue, relative à la caméra
     const k = n => keys[n] ? 1 : 0;
