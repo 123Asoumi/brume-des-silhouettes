@@ -2,6 +2,7 @@
 // L'interface (menus, guide, carte, sort) est en React ; elle parle au moteur par le store et l'objet renvoyé ici.
 import * as THREE from 'three';
 import { createAudio } from './audio.js';
+import { fitHead, buildHair, buildCap } from './hair.js';
 
 const ASSET = path => import.meta.env.BASE_URL + path;
 
@@ -437,6 +438,41 @@ ${LVP}
         vec3 c = tx * l + (grain()-.5)*.05;
         gl_FragColor = vec4(mix(c, uSky, haze(vW)), 1.);
       }` });
+  // cheveux : twists générés par le code, accrochés à l'os de la tête
+  const hairMat = new T.ShaderMaterial({ uniforms: Object.assign({ uHair:{value: new T.Color('#1d1714')} }, U),
+    vertexShader: `${LVP}
+      attribute float aAlong; varying vec3 vW; varying vec3 vN; varying float vA;
+      void main(){ vA = aAlong; vec4 w = modelMatrix*vec4(position,1.); vW = w.xyz; vN = normalize(mat3(modelMatrix)*normal);
+        gl_Position = projectionMatrix*viewMatrix*w; ${LV} }`,
+    fragmentShader: `
+      precision highp float; varying vec3 vW; varying vec3 vN; varying float vA;
+      uniform vec3 uHair, uSun, uSky, uCam; uniform float uTime;
+      ${GRAIN}
+      ${HAZE}
+      void main(){
+        vec3 n = normalize(vN), v = normalize(uCam - vW);
+        float l = .42 + .62*max(dot(n, uSun), 0.);
+        float rim = pow(1. - abs(dot(n, v)), 2.)*.22;
+        vec3 c = uHair*l*(.9 + .25*vA) + rim*mix(uHair, vec3(1.), .35) + (grain()-.5)*.05;
+        gl_FragColor = vec4(mix(c, uSky, haze(vW)), 1.);
+      }`, side: T.DoubleSide });
+  const capMat = new T.ShaderMaterial({ uniforms: hairMat.uniforms, vertexShader: hairMat.vertexShader.replace('attribute float aAlong;', '').replace('vA = aAlong;', 'vA = 0.;'),
+    fragmentShader: hairMat.fragmentShader });
+  const hair = { style: 'aucune', color: '#1d1714', group: null };
+  function applyHair(){
+    if(!hero.obj) return;
+    if(!hero.head) hero.head = fitHead(hero.obj);
+    const head = hero.head; if(!head) return;
+    if(hair.group){ head.bone.remove(hair.group); hair.group.traverse(o => o.geometry && o.geometry.dispose()); hair.group = null; }
+    hairMat.uniforms.uHair.value.set(hair.color);
+    const geo = buildHair(head, hair.style);
+    if(!geo) return;
+    const g = new T.Group();
+    g.add(new T.Mesh(buildCap(head), capMat), new T.Mesh(geo, hairMat));
+    g.traverse(o => o.frustumCulled = false);
+    head.bone.add(g); hair.group = g;
+  }
+
   const WALK = 1.36, RUN = 2.38;   // vitesses réelles des animations (m/s), pour que les pieds ne glissent pas
   const hero = { obj:null, mixer:null, acts:{}, cur:null,
     play(name, fade){ const a = this.acts[name]; if(!a || this.cur === a) return; a.reset().fadeIn(fade).play(); if(this.cur) this.cur.fadeOut(fade); this.cur = a; },
@@ -460,6 +496,7 @@ ${LVP}
       hero.mixer = new T.AnimationMixer(obj);
       for(const c of obj.animations) hero.acts[c.name] = hero.mixer.clipAction(c);
       hero.obj = obj;
+      applyHair();
     })
     .catch(e => console.warn('Héros non chargé', e));
 
@@ -1356,6 +1393,13 @@ ${LVP}
     replay(){ store.set({ fin:null }); resetLevel(); game.respawn = true; },
     openPerso(){ const s = store.get(); if(s.intro || paused()) return; clearKeys(); store.set({ perso:true }); },
     closePerso(){ store.set({ perso:false }); },
+    setHair(style, color){
+      if(style) hair.style = style;
+      if(color) hair.color = color;
+      store.set({ hair: { style: hair.style, color: hair.color } });
+      try { localStorage.setItem('brume.hair', JSON.stringify({ style: hair.style, color: hair.color })); } catch(e) {}
+      applyHair();
+    },
     setPagne(hex){
       if(hex){ heroMat.uniforms.uPagne.value.set(hex); heroMat.uniforms.uPagneOn.value = 1; }
       else heroMat.uniforms.uPagneOn.value = 0;
@@ -1382,6 +1426,7 @@ ${LVP}
 
   setLook('midi', true);
   try { const saved = localStorage.getItem('brume.pagne'); if(saved) api.setPagne(saved); } catch(e) {}
+  try { const h = JSON.parse(localStorage.getItem('brume.hair') || 'null'); if(h) api.setHair(h.style, h.color); } catch(e) {}
   resize();
   manageSites();
 
@@ -1395,8 +1440,8 @@ ${LVP}
     if(paused()){                       // le temps s'arrête pendant le sort, la carte et la personnalisation
       if(store.get().perso){            // la caméra tourne lentement autour du garçon pour le montrer
         camYaw += dt*.35;
-        const hy = height(x, z), d = 4.2, bx = x - Math.sin(camYaw)*d, bz = z - Math.cos(camYaw)*d;
-        camera.position.set(bx, hy + 1.35, bz); camera.lookAt(x, hy + .75, z);
+        const hy = height(x, z), d = 3.1, bx = x - Math.sin(camYaw)*d, bz = z - Math.cos(camYaw)*d;
+        camera.position.set(bx, hy + 1.45, bz); camera.lookAt(x, hy + .95, z);
         U.uCam.value.copy(camera.position); sky.position.copy(camera.position);
         hero.update(dt, 0);
       }

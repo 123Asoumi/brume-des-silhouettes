@@ -142,7 +142,7 @@
   box-shadow:5px 5px 0 rgba(22,21,20,.16)}
 .perso p,.perso h2{margin:0}
 .perso .k{font-family:var(--mono);font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--soft)}
-.perso h2{font-style:italic;font-weight:500;font-size:28px;line-height:1}
+.perso h2{font-style:italic;font-weight:500;font-size:24px;line-height:1;margin-top:4px}
 .nuancier{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
 .nuance{display:flex;align-items:center;gap:9px;padding:7px 8px;border:1px solid var(--rule);background:transparent;cursor:pointer;
   font-family:var(--mono);font-size:11px;letter-spacing:.06em;color:var(--ink);text-align:left;min-width:0;position:relative}
@@ -154,3 +154,11 @@
 .perso .ok{justify-self:start;font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;cursor:pointer;
   padding:10px 16px;background:var(--ink);color:var(--paper);border:1px solid var(--ink)}
 @media (max-width:640px){ .perso{top:auto;bottom:calc(16px + env(safe-area-inset-bottom,0px));transform:none;left:16px;right:16px;width:auto} .nuancier{grid-template-columns:repeat(3,minmax(0,1fr))} }
+
+.perso{max-height:calc(100vh - 40px);overflow-y:auto}
+.nuance.texte{justify-content:center;text-align:center;padding:9px 6px}
+.pastilles{display:flex;flex-wrap:wrap;gap:8px}
+.pastille{width:28px;height:28px;border-radius:50%;border:1px solid rgba(22,21,20,.3);cursor:pointer;padding:0}
+.pastille[aria-pressed="true"]{outline:2px solid var(--ink);outline-offset:2px}
+.pastille:focus-visible{outline:2px solid var(--ink);outline-offset:3px}
+@media (max-width:640px){ .perso{max-height:62vh} }
