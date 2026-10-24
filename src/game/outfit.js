@@ -143,7 +143,22 @@ export function buildOutfit(obj, outfit, mats){
   // ---- manches ----
   if(outfit.sleeves !== 'aucune'){
     const longues = outfit.sleeves === 'longues';
-    const pick = i => longues ? (W(i, FORE) + W(i, UPPER) >= .5 && W(i, HANDS) < .4) : (W(i, FORE) >= .55 && W(i, HANDS) < .3);
+    // position de chaque sommet le long de l'avant-bras (0 = coude, 1 = poignet), mesurée dans la pose de repos :
+    // selon le rigging, l'os de la main « tire » parfois la moitié de l'avant-bras, donc on mesure plutôt que de lire les poids
+    const along = {};
+    for(const side of ['Left', 'Right']){
+      const fi = idOf(side + 'ForeArm'), hand = bone(side + 'Hand');
+      if(fi < 0 || !hand) continue;
+      along[side] = { inv: new T.Matrix4().multiplyMatrices(mesh.skeleton.boneInverses[fi], mesh.bindMatrix), L: hand.position.length(),
+        ids: set(side + 'Arm', side + 'ForeArm', side + 'Hand') };
+    }
+    const v = new T.Vector3();
+    const tArm = i => {
+      for(const side in along){ const a = along[side];
+        if(W(i, a.ids) >= .5){ v.fromBufferAttribute(pos, i).applyMatrix4(a.inv); return v.y/a.L; } }
+      return null;
+    };
+    const pick = i => { const t = tArm(i); return t !== null && (longues ? t < .97 : t > .42 && t < .97); };
     const sm = garment(mesh, pick, (longues ? .006 : .008)*u, mats.garment(longues ? 4 : 3, outfit.color));
     if(sm) made.push({ node: sm, parent: mesh.parent });
   }
