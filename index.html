@@ -73,6 +73,45 @@
   .mange p{margin:0;font-style:italic;font-size:clamp(28px,6vw,54px);text-wrap:balance}
   .mange span{font-family:var(--mono);font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:#bdb6aa}
   .touch .etat{top:calc(100px + env(safe-area-inset-top,0px))}
+  .obj{position:fixed;left:50%;transform:translateX(-50%);top:calc(14px + env(safe-area-inset-top,0px));z-index:6;margin:0;
+    font-family:var(--display);font-style:italic;font-size:19px;color:var(--ink);white-space:nowrap;pointer-events:none}
+  .obj.pop{animation:pop .7s ease}
+  @keyframes pop{0%{transform:translateX(-50%) scale(1)}30%{transform:translateX(-50%) scale(1.18);color:#8a5a30}100%{transform:translateX(-50%) scale(1)}}
+  .touch .obj{top:calc(72px + env(safe-area-inset-top,0px));font-size:17px}
+  .touch .etat{top:calc(108px + env(safe-area-inset-top,0px))}
+  .bulle{position:fixed;z-index:12;transform:translate(-50%,calc(-100% - 18px));width:min(300px,calc(100vw - 32px));
+    background:var(--paper);border:1.5px solid var(--ink);padding:14px 16px 16px;display:grid;gap:6px;box-shadow:4px 4px 0 rgba(22,21,20,.18)}
+  .bulle::after{content:"";position:absolute;left:50%;bottom:-11px;width:18px;height:18px;background:var(--paper);
+    border-right:1.5px solid var(--ink);border-bottom:1.5px solid var(--ink);transform:translateX(-50%) rotate(45deg)}
+  .bulle p{margin:0}
+  .bulle-k{font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--soft)}
+  .bulle-sort{font-style:italic;font-size:24px;line-height:1.1}
+  .bulle input{font:inherit;font-family:var(--mono);font-size:15px;padding:8px 10px;border:1px solid var(--rule);background:#f6f4ef;color:var(--ink);min-width:0}
+  .bulle input:focus{outline:2px solid var(--ink);outline-offset:1px}
+  .bulle-err{font-family:var(--mono);font-size:11px;color:#9a3b1c}
+  .bulle-x{position:absolute;top:4px;right:6px;border:0;background:none;font-size:20px;line-height:1;color:var(--soft);cursor:pointer;padding:4px 6px}
+  .carte{position:fixed;inset:0;z-index:14;display:grid;place-items:center;background:rgba(22,21,20,.45);padding-inline:max(16px,env(safe-area-inset-left,0px))}
+  .carte-box{background:var(--paper);border:1.5px solid var(--ink);padding:14px;display:grid;gap:10px;max-width:100%}
+  .carte-top{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px}
+  .carte-top h2{margin:0;font-style:italic;font-weight:500;font-size:24px;margin-right:auto}
+  .tabs{display:flex;gap:2px}
+  .tabs button,.carte-x,.carton button{font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;cursor:pointer;
+    background:transparent;border:1px solid var(--rule);color:var(--ink);padding:7px 10px}
+  .tabs button[aria-pressed="true"]{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+  #carte-c{display:block;cursor:crosshair;touch-action:none;max-width:100%}
+  .carte-note{margin:0;font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;color:var(--soft)}
+  .flash{position:fixed;inset:0;z-index:13;background:#fbfaf7;opacity:0;pointer-events:none}
+  .flash.go{animation:flash .9s ease-out}
+  @keyframes flash{0%{opacity:.95}100%{opacity:0}}
+  .carton{position:fixed;inset:0;z-index:16;display:grid;place-items:center;background:rgba(235,231,223,.82);backdrop-filter:blur(3px);
+    padding-inline:max(20px,env(safe-area-inset-left,0px))}
+  .carton > div{max-width:440px;display:grid;gap:12px;justify-items:start}
+  .carton p{margin:0;font-size:19px;line-height:1.4}
+  .carton .k{font-family:var(--mono);font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--soft)}
+  .carton h2{margin:0;font-style:italic;font-weight:500;font-size:clamp(34px,6vw,48px);line-height:1;text-wrap:balance}
+  .carton .small{font-size:16px;color:var(--soft)}
+  .carton button{margin-top:6px;padding:11px 18px;background:var(--ink);color:var(--paper);border-color:var(--ink);font-size:11.5px}
+  .bulle-x:focus-visible,.tabs button:focus-visible,.carte-x:focus-visible,.carton button:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
   /* téléphone et tablette : joystick à gauche, bouton Courir à droite, infos en haut */
   .touch .stick{display:block;bottom:calc(28px + env(safe-area-inset-bottom,0px))}
   .touch .courir{display:block}
@@ -109,11 +148,48 @@
   </ol>
 </template>
 
-<div class="aide" id="aide">ZQSD ou flèches pour marcher · Maj pour courir · glissez pour tourner la caméra · fuis les bêtes masquées : cache-toi derrière les rochers ou dans les cases</div>
+<div class="aide" id="aide">ZQSD ou flèches pour marcher · Maj pour courir · T pour le sort de téléportation · cache-toi derrière les rochers ou dans les cases</div>
 <div class="stick" id="stick" aria-hidden="true"><div class="knob" id="knob"></div></div>
 <button class="courir" id="courir" type="button">Courir</button>
 <p class="etat" id="etat" hidden></p>
 <div class="mange" id="mange" hidden><p id="mange-txt"></p><span>Retour au départ…</span></div>
+<p class="obj" id="obj"></p>
+<div class="bulle" id="bulle" hidden>
+  <button class="bulle-x" id="bulle-x" type="button" aria-label="Fermer">×</button>
+  <p class="bulle-k">Écris le sort pour te téléporter</p>
+  <p class="bulle-sort">« Brume, ouvre la route »</p>
+  <input id="sort-in" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="écris le sort ici…" aria-label="Sort">
+  <p class="bulle-err" id="sort-err" hidden>Ce n’est pas tout à fait ça. Réessaie.</p>
+</div>
+<div class="carte" id="carte" hidden>
+  <div class="carte-box">
+    <div class="carte-top">
+      <h2>Où veux-tu aller ?</h2>
+      <div class="tabs"><button data-v="proche" aria-pressed="true">Autour de toi</button><button data-v="plaine" aria-pressed="false">La plaine</button></div>
+      <button class="carte-x" id="carte-x" type="button">Fermer</button>
+    </div>
+    <canvas id="carte-c"></canvas>
+    <p class="carte-note">Touche un endroit de la carte : tu y seras téléporté.</p>
+  </div>
+</div>
+<div class="flash" id="flash"></div>
+<div class="carton" id="intro">
+  <div>
+    <p class="k">Niveau 1</p>
+    <h2>Rallumer le feu</h2>
+    <p>Le feu de ta case s’est éteint pendant la nuit. Rapporte trois morceaux de bois : un au bord du lac, un chez les cochons masqués, un au pied des titans.</p>
+    <p class="small">Pour aller loin, lance le sort de téléportation : bouton Sort, ou touche T.</p>
+    <button id="go" type="button">Commencer</button>
+  </div>
+</div>
+<div class="carton" id="fin" hidden>
+  <div>
+    <p class="k">Niveau 1 terminé</p>
+    <h2>Le village dormira au chaud ce soir</h2>
+    <p id="fin-t"></p>
+    <button id="rejouer" type="button">Rejouer</button>
+  </div>
+</div>
 
 <div class="cartel">
   <p class="scene" id="scene"></p>
@@ -127,6 +203,7 @@
   <button data-l="midi" aria-pressed="true">Midi</button>
   <button data-l="soir">Soir</button>
   <span class="sep"></span>
+  <button id="sortBtn">Sort</button>
   <button id="vite" aria-pressed="false">Foncer</button>
   <button id="son" aria-pressed="false">Kora</button>
 </div>
@@ -1250,13 +1327,90 @@ ${LVP}
     game.stomper = null; marker.visible = false;
   }
 
+  /* ================= Niveau 1 : rallumer le feu (trois morceaux de bois) ================= */
+  const woodMat = new T.ShaderMaterial({ uniforms: U, vertexShader: stoneMat.vertexShader,
+    fragmentShader: `
+      precision highp float; varying vec3 vW; varying vec3 vN; uniform vec3 uSun, uSky, uCam; uniform float uTime;
+      ${GRAIN}
+      ${HAZE}
+      void main(){
+        float l = .55 + .55*max(dot(normalize(vN), uSun), 0.);
+        float veine = vn(vec2(vW.y*38., (vW.x + vW.z)*2.5));
+        vec3 c = mix(vec3(.34,.21,.11), vec3(.63,.43,.24), veine) * l + (grain()-.5)*.06;
+        gl_FragColor = vec4(mix(c, uSky, haze(vW)), 1.);
+      }` });
+  const logGeo = new T.CylinderGeometry(.09, .1, .78, 10); logGeo.rotateZ(Math.PI/2);
+  function makeWood(){
+    const g = new T.Group();
+    for(const [y, z, ry] of [[.1,-.1,.3],[.1,.12,-.4],[.27,0,1.2]]){ const m = new T.Mesh(logGeo, woodMat); m.position.set(0, y, z); m.rotation.y = ry; g.add(m); }
+    g.scale.setScalar(1.25); g.traverse(o => o.frustumCulled = false); scene.add(g); return g;
+  }
+  const homeHut = obstacles.find(o => o.kind === 'hut');
+  const level = { items: [], got: 0, done: false, elapsed: 0, fire: false, acc: 0 };
+  {
+    const a = Math.atan2(-LAKE.x, -LAKE.z) - 1.1, rr = LAKE.R - 1.1;
+    const spots = [
+      { label:'au bord du lac', x: LAKE.x + Math.sin(a)*rr, z: LAKE.z + Math.cos(a)*rr, float:true },
+      { label:'chez les cochons', x: P(66, 4)[0], z: P(66, 4)[1] },
+      { label:'au pied des titans', x: curated[0].x, z: curated[0].z },
+    ];
+    for(const s of spots){
+      const it = Object.assign(s, { mesh: makeWood(), taken:false, phase: R7()*6 });
+      if(s.float){ const pad = new T.Mesh(new T.CircleGeometry(.95, 24), titanMat); pad.rotation.x = -Math.PI/2; pad.position.set(s.x, LAKE.water + .03, s.z); scene.add(pad); }
+      level.items.push(it);
+    }
+  }
+  const objEl = document.getElementById('obj'), finEl = document.getElementById('fin');
+  function hud(){
+    objEl.textContent = level.done ? 'Le feu de ta case brûle' :
+      level.got < 3 ? `Rallume le feu de ta case · bois ${level.got}/3` : 'Rapporte le bois dans ta case';
+  }
+  function resetLevel(){
+    level.got = 0; level.done = false; level.elapsed = 0; level.fire = false;
+    for(const it of level.items){ it.taken = false; it.mesh.visible = true; }
+    hud();
+  }
+  function updateLevel(dt, hx, hz){
+    if(!level.done) level.elapsed += dt;
+    for(const it of level.items){
+      if(it.taken) continue;
+      it.phase += dt;
+      const gy = it.float ? LAKE.water + .05 : height(it.x, it.z);
+      it.mesh.position.set(it.x, gy + .1 + Math.sin(it.phase*2)*.06, it.z); it.mesh.rotation.y += dt*.6;
+      if(game.lock <= 0 && Math.hypot(hx - it.x, hz - it.z) < 1.7){
+        it.taken = true; it.mesh.visible = false; level.got++; hud();
+        objEl.classList.remove('pop'); void objEl.offsetWidth; objEl.classList.add('pop');
+        if(audio.on) audio.boom(.25);
+      }
+    }
+    if(!level.done && level.got >= 3 && inHut(hx, hz) === homeHut){
+      level.done = true; level.fire = true; hud();
+      const m = Math.floor(level.elapsed/60), s = Math.floor(level.elapsed % 60);
+      document.getElementById('fin-t').textContent = `Temps : ${m} min ${String(s).padStart(2,'0')} s`;
+      setTimeout(() => { finEl.hidden = false; }, 1600);
+    }
+    if(level.fire){                       // petit feu orange au centre de la case
+      level.acc += dt; const y0 = height(homeHut.x, homeHut.z), r = Math.random;
+      while(level.acc > .03){ level.acc -= .03;
+        emit(homeHut.x + (r()-.5)*.5, y0 + .15, homeHut.z + (r()-.5)*.5, (r()-.5)*.4, 1.4 + r()*1.4, (r()-.5)*.4, .5 + r()*.4, .8, .15, 1, .6, -1);
+        if(r() < .2) emit(homeHut.x, y0 + 1.2, homeHut.z, (r()-.5)*.3, 1 + r(), (r()-.5)*.3, 3, .5, 2.5, .15, .2, -.2);
+      }
+    }
+  }
+  hud();
+
   /* ================= Contrôle du garçon (troisième personne) ================= */
   // ZQSD / WASD / flèches : se déplacer par rapport à la caméra · Maj : courir · glisser : tourner la caméra · molette : zoom
   let x = 0, z = 0, heroYaw = START_YAW, camYaw = START_YAW, camPitch = .16, camDist = 6, camY = height(0,0)+2;
   let walked = 0, boost = 1, rush = false, lastBuild = -1, curV = 0;
   const keys = {};
   const stick = { x:0, y:0 };
-  addEventListener('keydown', e=>{ keys[e.key.toLowerCase()] = true; if(e.key.startsWith('Arrow') || e.key === ' ') e.preventDefault(); hideAide(); });
+  addEventListener('keydown', e=>{
+    if(e.target && e.target.tagName === 'INPUT') return;
+    if(ui.intro) return;
+    if(e.key === 'Escape'){ closeSpell(); closeMap(); return; }
+    if(e.key.toLowerCase() === 't' && !ui.paused()){ e.preventDefault(); openSpell(); return; }
+    keys[e.key.toLowerCase()] = true; if(e.key.startsWith('Arrow') || e.key === ' ') e.preventDefault(); hideAide(); });
   addEventListener('keyup',   e=>{ keys[e.key.toLowerCase()] = false; });
   addEventListener('blur', ()=>{ for(const k in keys) keys[k] = false; });
   let drag=false, px=0, py=0;
@@ -1277,7 +1431,7 @@ ${LVP}
     knob.style.transform = `translate(${dx}px, ${dy}px)`;
     stick.x = dx/R; stick.y = dy/R;
   }
-  stickEl.addEventListener('pointerdown', e=>{ stickId = e.pointerId; stickEl.setPointerCapture(e.pointerId); stickMove(e); hideAide(); });
+  stickEl.addEventListener('pointerdown', e=>{ if(ui.intro) return; stickId = e.pointerId; stickEl.setPointerCapture(e.pointerId); stickMove(e); hideAide(); });
   stickEl.addEventListener('pointermove', e=>{ if(e.pointerId === stickId) stickMove(e); });
   const stickEnd = e=>{ if(e.pointerId !== stickId) return; stickId = null; stick.x = stick.y = 0; knob.style.transform = ''; };
   stickEl.addEventListener('pointerup', stickEnd); stickEl.addEventListener('pointercancel', stickEnd);
@@ -1301,6 +1455,110 @@ ${LVP}
   const vb = document.getElementById('vite');
   vb.addEventListener('click', ()=>{ rush = !rush; vb.setAttribute('aria-pressed', String(rush)); });
 
+  /* ================= Le sort de téléportation et la carte ================= */
+  const SPELL = 'Brume, ouvre la route';
+  const norm = s => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z]+/g, ' ').trim();
+  const ui = { intro: true, spell: false, map: false, paused(){ return this.spell || this.map || !finEl.hidden; } };
+  const bulle = document.getElementById('bulle'), sortIn = document.getElementById('sort-in'), sortErr = document.getElementById('sort-err');
+  const carte = document.getElementById('carte'), mapC = document.getElementById('carte-c'), flashEl = document.getElementById('flash');
+  let mapView = 'proche', hover = null;
+  const SHORT = { regard:'Veilleurs', feu:'Feu', combat:'Combat', danse:'Danse', jeu:'Jeu', marche:'Marcheurs' };
+  function clearKeys(){ for(const k in keys) keys[k] = false; stick.x = stick.y = 0; }
+  function openSpell(){ if(ui.paused()) return; ui.spell = true; clearKeys(); bulle.hidden = false; sortErr.hidden = true; sortIn.value = ''; placeBubble(); setTimeout(() => sortIn.focus(), 30); }
+  function closeSpell(){ ui.spell = false; bulle.hidden = true; sortIn.blur(); }
+  function trySpell(){
+    if(norm(sortIn.value) === norm(SPELL)){ closeSpell(); openMap(); return true; }
+    return false;
+  }
+  sortIn.addEventListener('input', () => { sortErr.hidden = true; trySpell(); });
+  sortIn.addEventListener('keydown', e => {
+    if(e.key === 'Escape'){ e.preventDefault(); closeSpell(); }
+    if(e.key === 'Enter'){ e.preventDefault(); if(!trySpell()) sortErr.hidden = false; }
+  });
+  document.getElementById('bulle-x').addEventListener('click', closeSpell);
+  document.getElementById('sortBtn').addEventListener('click', openSpell);
+  function placeBubble(){
+    if(bulle.hidden) return;
+    const v = new T.Vector3(x, height(x, z) + 1.75, z).project(camera);
+    const r = canvas.getBoundingClientRect();
+    bulle.style.left = Math.max(150, Math.min(r.width - 150, (v.x*.5 + .5)*r.width)) + 'px';
+    bulle.style.top = Math.max(190, (-v.y*.5 + .5)*r.height) + 'px';
+  }
+
+  function openMap(){ ui.map = true; clearKeys(); carte.hidden = false; sizeMap(); drawMap(); }
+  function closeMap(){ ui.map = false; carte.hidden = true; hover = null; }
+  document.getElementById('carte-x').addEventListener('click', closeMap);
+  document.querySelectorAll('[data-v]').forEach(b => b.addEventListener('click', () => {
+    mapView = b.dataset.v;
+    document.querySelectorAll('[data-v]').forEach(o => o.setAttribute('aria-pressed', String(o === b)));
+    drawMap();
+  }));
+  function sizeMap(){
+    const s = Math.max(240, Math.min(innerWidth - 40, innerHeight - 190, 720)), dpr = Math.min(devicePixelRatio || 1, 2);
+    mapC.style.width = mapC.style.height = s + 'px'; mapC.width = mapC.height = Math.round(s*dpr);
+  }
+  function view(){ return mapView === 'proche' ? { cx:x, cz:z, r:150 } : (() => { const c = P(31000, 0); return { cx:c[0], cz:c[1], r:34000 }; })(); }
+  function toScreen(v, wx, wz){
+    const W = mapC.width, S = W/2*.92, dx = wx - v.cx, dz = wz - v.cz;
+    return [W/2 + (dx*RGT[0] + dz*RGT[1])/v.r*S, W/2 - (dx*FWD[0] + dz*FWD[1])/v.r*S];
+  }
+  function toWorld(v, sx, sy){
+    const W = mapC.width, S = W/2*.92, u = (sx - W/2)/S*v.r, w = -(sy - W/2)/S*v.r;
+    return [v.cx + RGT[0]*u + FWD[0]*w, v.cz + RGT[1]*u + FWD[1]*w];
+  }
+  function drawMap(){
+    const g = mapC.getContext('2d'), W = mapC.width, d = W/(parseFloat(mapC.style.width) || W), v = view();
+    const px = n => n*d, rad = m => m/v.r*W/2*.92;
+    g.fillStyle = '#ebe7df'; g.fillRect(0, 0, W, W);
+    g.strokeStyle = 'rgba(22,21,20,.07)'; g.lineWidth = px(1);
+    for(let i = 1; i < 8; i++){ const p = i*W/8; g.beginPath(); g.moveTo(p, 0); g.lineTo(p, W); g.moveTo(0, p); g.lineTo(W, p); g.stroke(); }
+    const label = (t, sx, sy, col = '#3d3a35') => { g.fillStyle = col; g.font = `${px(11)}px "IBM Plex Mono", monospace`; g.textAlign = 'center'; g.fillText(t, sx, sy); };
+    const dot = (sx, sy, r, col) => { g.fillStyle = col; g.beginPath(); g.arc(sx, sy, r, 0, 7); g.fill(); };
+    if(mapView === 'proche'){
+      let [sx, sy] = toScreen(v, LAKE.x, LAKE.z); dot(sx, sy, rad(LAKE.R), '#5f90b9'); label('lac', sx, sy + px(4), '#eef3f7');
+      for(const o of obstacles){ [sx, sy] = toScreen(v, o.x, o.z);
+        if(o.kind === 'rock') dot(sx, sy, Math.max(px(3), rad(o.r)), '#a7a29a');
+        else { dot(sx, sy, Math.max(px(4), rad(o.r)), '#2a2826'); if(o === homeHut) label('ta case', sx, sy - Math.max(px(8), rad(o.r)) - px(5)); } }
+      for(const p of pigs){ [sx, sy] = toScreen(v, p.x, p.z); dot(sx, sy, px(4.5), '#161514'); }
+      label('50 m', px(36), W - px(12)); g.fillStyle = '#161514'; g.fillRect(px(12), W - px(26), rad(50), px(2));
+    } else {
+      let [sx, sy] = toScreen(v, 0, 0); dot(sx, sy, px(4), '#5f90b9'); label('village', sx, sy + px(16));
+      const seen = new Set();
+      for(const s of [...curated, ...live.values()]){
+        if(seen.has(s.key)) continue; seen.add(s.key);
+        [sx, sy] = toScreen(v, s.x, s.z); if(sx < 0 || sy < 0 || sx > W || sy > W) continue;
+        g.fillStyle = '#161514'; g.beginPath(); g.ellipse(sx, sy - px(7), px(4), px(9), 0, 0, 7); g.fill();
+        g.fillRect(sx - px(3), sy, px(1.5), px(7)); g.fillRect(sx + px(1.5), sy, px(1.5), px(7));
+        if(s.type === 'feu') dot(sx, sy + px(10), px(3.5), '#f07a1d');
+        label(SHORT[s.type], sx, sy + px(s.type === 'feu' ? 26 : 20));
+      }
+      label('10 km', px(40), W - px(12)); g.fillStyle = '#161514'; g.fillRect(px(12), W - px(26), rad(10000), px(2));
+    }
+    level.items.forEach((it, i) => { if(it.taken || (mapView === 'plaine' && Math.hypot(it.x, it.z) < 1000)) return; const [sx, sy] = toScreen(v, it.x, it.z);
+      if(sx < 0 || sy < 0 || sx > W || sy > W) return;
+      g.fillStyle = '#8a5a30'; g.fillRect(sx - px(6), sy - px(6), px(12), px(12));
+      label('bois ' + (i+1), sx, sy - px(10), '#6b4423'); });
+    { const [sx, sy] = toScreen(v, x, z); dot(sx, sy, px(7), '#ebe7df'); dot(sx, sy, px(5), '#161514');
+      g.strokeStyle = '#161514'; g.lineWidth = px(2); g.beginPath();
+      const hx = Math.sin(heroYaw)*RGT[0] + Math.cos(heroYaw)*RGT[1], hy = Math.sin(heroYaw)*FWD[0] + Math.cos(heroYaw)*FWD[1];
+      g.moveTo(sx, sy); g.lineTo(sx + hx*px(14), sy - hy*px(14)); g.stroke(); label('toi', sx, sy + px(20), '#161514'); }
+    if(hover){ g.strokeStyle = '#161514'; g.lineWidth = px(1.5); g.beginPath(); g.arc(hover[0], hover[1], px(11), 0, 7); g.stroke();
+      g.beginPath(); g.moveTo(hover[0] - px(17), hover[1]); g.lineTo(hover[0] + px(17), hover[1]); g.moveTo(hover[0], hover[1] - px(17)); g.lineTo(hover[0], hover[1] + px(17)); g.stroke(); }
+  }
+  const mapPt = e => { const r = mapC.getBoundingClientRect(), k = mapC.width / r.width; return [(e.clientX - r.left)*k, (e.clientY - r.top)*k]; };
+  mapC.addEventListener('pointermove', e => { hover = mapPt(e); drawMap(); });
+  mapC.addEventListener('pointerleave', () => { hover = null; drawMap(); });
+  mapC.addEventListener('click', e => { const [wx, wz] = toWorld(view(), ...mapPt(e)); teleport(wx, wz); });
+  function teleport(wx, wz){
+    [x, z] = resolveHero(wx, wz); curV = 0; boost = 1; camY = height(x, z) + 2.4;
+    closeMap();
+    flashEl.classList.remove('go'); void flashEl.offsetWidth; flashEl.classList.add('go');
+    dust(x, z, 7, 12, .5); if(audio.on) audio.boom(.4);
+  }
+
+  document.getElementById('go').addEventListener('click', () => { ui.intro = false; document.getElementById('intro').hidden = true; });
+  document.getElementById('rejouer').addEventListener('click', () => { finEl.hidden = true; resetLevel(); game.respawn = true; });
+
   function resize(){
     const w=canvas.clientWidth, h=canvas.clientHeight;
     renderer.setSize(w,h,false); camera.aspect=w/h; camera.updateProjectionMatrix();
@@ -1320,6 +1578,7 @@ ${LVP}
     clock += dt;
     U.uTime.value = clock;
     easeLook(1 - Math.pow(0.02, dt));
+    if(ui.paused()){ placeBubble(); renderer.render(scene, camera); return; }   // le temps s'arrête pendant le sort et la carte
 
     // direction voulue, relative à la caméra
     const k = n => keys[n] ? 1 : 0;
@@ -1347,6 +1606,7 @@ ${LVP}
     [x, z] = resolveHero(x, z);
     if(game.respawn){ game.respawn = false; x = 0; z = 0; heroYaw = camYaw = START_YAW; curV = 0; respawnBeasts(); }
     updateGame(dt, x, z);
+    updateLevel(dt, x, z);
     camX = x; camZ = z;
 
     // caméra en orbite autour du garçon, qui le suit sans à-coups
