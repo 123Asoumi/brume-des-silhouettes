@@ -29,7 +29,7 @@ export const store = createStore({
   scene: '', info: '',
   audioOn: false, audioLoading: false, credit: false,
   rush: false, look: 'midi',
-  perso: false, pagne: null,
+  perso: false, pagne: null, skin: null,
   outfit: { top: 'aucun', sleeves: 'aucune', color: '#2c3e8f', bracelets: false, perles: false, collier: false, boucles: false, chaines: false }, hair: { style: 'aucune', size: 'moyen', color: '#1d1714' },
   touch: isTouch,
 });

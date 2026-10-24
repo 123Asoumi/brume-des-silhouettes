@@ -410,7 +410,7 @@ ${LVP}
 
   /* ================= Le héros : petit garçon en pagne, avec sa texture d'origine ================= */
   const heroTex = new T.TextureLoader().load(ASSET('hero.jpg'));
-  const heroMat = new T.ShaderMaterial({ uniforms: Object.assign({ map:{value: heroTex}, uPagne:{value: new T.Color('#2c3e8f')}, uPagneOn:{value: 0} }, U),
+  const heroMat = new T.ShaderMaterial({ uniforms: Object.assign({ map:{value: heroTex}, uPagne:{value: new T.Color('#2c3e8f')}, uPagneOn:{value: 0}, uSkin:{value: new T.Color('#5a3622')}, uSkinOn:{value: 0} }, U),
     vertexShader: `${LVP}
 #include <skinning_pars_vertex>
       varying vec3 vW; varying vec3 vN; varying vec2 vUv;
@@ -426,15 +426,17 @@ ${LVP}
     fragmentShader: `
       precision highp float;
       varying vec3 vW; varying vec3 vN; varying vec2 vUv;
-      uniform sampler2D map; uniform vec3 uSun,uSky,uCam,uPagne; uniform float uTime,uPagneOn;
+      uniform sampler2D map; uniform vec3 uSun,uSky,uCam,uPagne,uSkin; uniform float uTime,uPagneOn,uSkinOn;
       ${GRAIN}
       ${HAZE}
       void main(){
         vec3 tx = texture2D(map, vUv).rgb;
         // le pagne est la seule zone claire de la texture : on la teinte en gardant ses plis et ses ombres
         float lum = dot(tx, vec3(.299, .587, .114));
-        float m = smoothstep(.50, .60, lum) * uPagneOn;
-        tx = mix(tx, uPagne * clamp(lum/.72, 0., 1.25), m);
+        float cloth = smoothstep(.50, .60, lum);
+        tx = mix(tx, uPagne * clamp(lum/.72, 0., 1.25), cloth*uPagneOn);
+        // la peau : tout ce qui n'est pas le pagne ; la teinte garde les ombres et les détails du visage
+        tx = mix(tx, uSkin * clamp(lum/.36, 0., 1.7), (1. - cloth)*uSkinOn);
         float l = .72 + .38*max(dot(normalize(vN), uSun), 0.);
         vec3 c = tx * l + (grain()-.5)*.05;
         gl_FragColor = vec4(mix(c, uSky, haze(vW)), 1.);
@@ -1485,6 +1487,12 @@ ${LVP}
       try { localStorage.setItem('brume.outfit', JSON.stringify(o)); } catch(e) {}
       applyOutfit();
     },
+    setSkin(hex){
+      if(hex){ heroMat.uniforms.uSkin.value.set(hex); heroMat.uniforms.uSkinOn.value = 1; }
+      else heroMat.uniforms.uSkinOn.value = 0;
+      store.set({ skin: hex || null });
+      try { if(hex) localStorage.setItem('brume.skin', hex); else localStorage.removeItem('brume.skin'); } catch(e) {}
+    },
     setPagne(hex){
       if(hex){ heroMat.uniforms.uPagne.value.set(hex); heroMat.uniforms.uPagneOn.value = 1; }
       else heroMat.uniforms.uPagneOn.value = 0;
@@ -1511,6 +1519,7 @@ ${LVP}
 
   setLook('midi', true);
   try { const saved = localStorage.getItem('brume.pagne'); if(saved) api.setPagne(saved); } catch(e) {}
+  try { const sk = localStorage.getItem('brume.skin'); if(sk) api.setSkin(sk); } catch(e) {}
   try { const h = JSON.parse(localStorage.getItem('brume.hair') || 'null'); if(h) api.setHair(h); } catch(e) {}
   try { const o = JSON.parse(localStorage.getItem('brume.outfit') || 'null'); if(o) api.setOutfit(o); } catch(e) {}
   resize();

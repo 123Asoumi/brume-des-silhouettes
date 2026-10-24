@@ -6,6 +6,8 @@ const PAGNES = [
   ['#c98a2b', 'Ocre', '#c98a2b'], ['#2f7a4b', 'Vert', '#2f7a4b'], ['#1f8a8a', 'Turquoise', '#1f8a8a'],
   ['#6b3a8c', 'Violet', '#6b3a8c'], ['#d9b23a', 'Or', '#d9b23a'], ['#2a2826', 'Noir', '#2a2826'],
 ];
+const PEAUX = [[null, 'D’origine', '#5c5a57'], ['#3b2419', 'Ébène', '#3b2419'], ['#5a3622', 'Brun foncé', '#5a3622'],
+  ['#7a4a2e', 'Brun', '#7a4a2e'], ['#8e5a3c', 'Cuivré', '#8e5a3c'], ['#9f7253', 'Caramel', '#9f7253'], ['#b08866', 'Miel', '#b08866']];
 const COIFFURES = [['aucune', 'Rasé'], ['twists', 'Twists'], ['afro', 'Afro'], ['locs', 'Locs']];
 const TAILLES = {
   twists: [['petit', 'Courts'], ['moyen', 'Mi-longs'], ['grand', 'Longs']],
@@ -27,7 +29,7 @@ function Choix({ items, value, onPick, label }){
 }
 
 export function Perso({ engine }){
-  const open = useGame(s => s.perso), pagne = useGame(s => s.pagne), hair = useGame(s => s.hair), outfit = useGame(s => s.outfit);
+  const open = useGame(s => s.perso), pagne = useGame(s => s.pagne), skin = useGame(s => s.skin), hair = useGame(s => s.hair), outfit = useGame(s => s.outfit);
   const [tab, setTab] = useState('corps');
   if(!open) return null;
   const custom = pagne && !PAGNES.some(([h]) => h === pagne);
@@ -41,6 +43,13 @@ export function Perso({ engine }){
       </div>
 
       {tab === 'corps' && <>
+        <h2>Peau</h2>
+        <div className="pastilles" role="group" aria-label="Couleur de peau">
+          {PEAUX.map(([h, name, swatch]) => (
+            <button key={name} type="button" className="pastille" aria-pressed={skin === h} aria-label={name} title={name}
+              style={{ background: swatch }} onClick={() => engine.setSkin(h)} />
+          ))}
+        </div>
         <h2>Coiffure</h2>
         <div className="nuancier">
           {COIFFURES.map(([id, name]) => (
